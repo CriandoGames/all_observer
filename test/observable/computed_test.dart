@@ -266,9 +266,12 @@ void main() {
   });
 
   group('Computed.value read inside a still-open batch', () {
-    test('reading value inside Observable.batch, after an upstream write, '
-        'eagerly flushes the dirty recompute right there instead of '
-        'waiting for the batch to end', () {
+    test('a write to an upstream Observable is not delivered to a '
+        'dependent Computed until the outermost batch actually flushes — '
+        'reading the Computed *while the batch is still open* still sees '
+        'the old value, because the notification that would mark it dirty '
+        'is itself deferred, exactly like any other batched notification', (
+    ) {
       final Observable<int> source = Observable<int>(1);
       int computeRuns = 0;
       final Computed<int> doubled = Computed<int>(() {
@@ -284,15 +287,60 @@ void main() {
       late int valueSeenInsideBatch;
       Observable.batch(() {
         source.value = 5;
-        // The getter's own `_flushIfDirty` check recomputes right here,
-        // synchronously, instead of waiting for the batch to flush — see
-        // the note on `Computed.value`.
+        // `source`'s own listeners (including `doubled`'s dependency
+        // callback) haven't run yet at this point — that only happens
+        // once the outermost `batch()` call flushes, after `action`
+        // returns — so `doubled` was never even marked dirty yet, and its
+        // getter's `_flushIfDirty` check is a no-op here.
         valueSeenInsideBatch = doubled.value;
       });
 
-      expect(valueSeenInsideBatch, 10);
-      // Recomputed exactly once (the in-batch read), not again when the
-      // batch itself ends, since `_dirty` was already cleared by that read.
+      expect(valueSeenInsideBatch, 2); // still the pre-batch value
+      expect(computeRuns, 0); // no recompute happened yet at that point
+
+      // Only after the batch has fully ended (and flushed) does `doubled`
+      // reflect the write.
+      expect(doubled.value, 10);
+      expect(computeRuns, 1);
+      expect(notifications, 1);
+    });
+
+    test('a manual listener on the upstream Observable, invoked during the '
+        'same notification pass as a dependent Computed (registered '
+        'after it, so it runs later in the same notifyAll), can observe '
+        'the Computed already recomputed via the getter\'s own dirty-flush '
+        'check — ahead of that Computed\'s own queued batch-flush callback, '
+        'which becomes a no-op once it eventually runs', () {
+      final Observable<int> source = Observable<int>(1);
+      int computeRuns = 0;
+      final Computed<int> doubled = Computed<int>(() {
+        computeRuns++;
+        return source.value * 2;
+      });
+      expect(doubled.value, 2); // subscribes `doubled` to `source` first.
+      computeRuns = 0;
+
+      int notifications = 0;
+      doubled.addListener(() => notifications++);
+
+      int? seenInsideManualListener;
+      // Registered on `source` *after* `doubled` already subscribed, so
+      // this manual listener runs right after `doubled`'s own dependency
+      // callback within the same `notifyAll` pass over `source`'s
+      // listeners — at which point `doubled` is already marked dirty, but
+      // not yet flushed via its own queued batch callback.
+      source.listen((int _) {
+        seenInsideManualListener = doubled.value;
+      });
+
+      Observable.batch(() {
+        source.value = 5;
+      });
+
+      expect(seenInsideManualListener, 10);
+      // Recomputed exactly once — the manual listener's read flushed it
+      // early via the getter, so the later queued dirty-flush callback for
+      // `doubled` is a harmless no-op by the time it runs.
       expect(computeRuns, 1);
       expect(notifications, 1);
       expect(doubled.value, 10);

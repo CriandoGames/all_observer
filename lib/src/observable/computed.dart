@@ -114,12 +114,39 @@ class Computed<T> implements ValueListenable<T> {
   T get value {
     DependencyTracker.reportRead(_registry, label: _label);
     _ensureLive();
-    // A dependency changed while a batch was active: [_onDependencyChanged]
-    // deferred the actual recompute to this read (or to the end-of-batch
-    // flush, whichever comes first) instead of running it eagerly, so
-    // every dependency this Computed reads is guaranteed to already hold
-    // its final, post-batch value — never a partially-applied intermediate
-    // one. See the "diamond glitch" note on the class doc.
+    // This only matters once this Computed has actually been marked dirty
+    // by [_onDependencyChanged] — which itself only happens once
+    // [BatchScope] starts flushing (an upstream write made *while a batch
+    // is merely still open* is queued and does not reach any listener,
+    // this one included, until the outermost `batch()` call returns and
+    // flushes). So a plain read from inside the batch's own callback, made
+    // before it returns, still sees the pre-write cached value — only a
+    // read that happens *during* the flush itself (e.g. from another
+    // Computed's `compute`, or from a manual `listen`/`ever` callback
+    // invoked as part of that same flush) can observe this getter actually
+    // recomputing here, ahead of this Computed's own queued batch-flush
+    // callback (which becomes a harmless no-op once it eventually runs).
+    // See the "diamond glitch" note on the class doc, and the
+    // `test/observable/computed_test.dart` group covering this getter
+    // specifically for the exact scenarios this does and doesn't cover.
+    //
+    // Isso só importa depois que este Computed já tiver sido marcado como
+    // sujo por [_onDependencyChanged] — o que só acontece quando o
+    // [BatchScope] começa a fazer flush (uma escrita a montante feita
+    // *enquanto um batch ainda está apenas aberto* fica na fila e não
+    // alcança nenhum listener, incluindo este, até que a chamada `batch()`
+    // mais externa retorne e faça o flush). Então uma leitura simples de
+    // dentro do próprio callback do batch, feita antes dele retornar, ainda
+    // vê o valor em cache anterior à escrita — só uma leitura que acontece
+    // *durante* o flush em si (ex.: a partir do `compute` de outro
+    // Computed, ou de um callback `listen`/`ever` manual invocado como
+    // parte desse mesmo flush) pode observar este getter de fato
+    // recalculando aqui, adiantando-se ao próprio callback de flush de
+    // batch enfileirado deste Computed (que vira um no-op inofensivo
+    // quando eventualmente rodar). Veja a nota sobre "glitch do diamante"
+    // no doc da classe, e o grupo em `test/observable/computed_test.dart`
+    // que cobre este getter especificamente para os cenários exatos que
+    // isso cobre e não cobre.
     _flushIfDirty();
     return _value;
   }
