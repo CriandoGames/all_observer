@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 <a href="https://pub.dev/packages/all_observer/score"><img src="https://img.shields.io/pub/points/all_observer?label=pub%20points" alt="pub points"></a>
- <img src="https://img.shields.io/badge/testes-18-brightgreen" alt="150 testes">
+ <img src="https://img.shields.io/badge/testes-18-brightgreen" alt="156 testes">
 
 Reactive state for Flutter, zero dependencies. `Observable` values plus an
 auto-tracking `Observer` widget — a small, safe, dependency-free core for
@@ -387,6 +387,20 @@ What has **no** equivalent here, by design — `all_observer` only handles
   happen outside `Observable.batch()`. Wrap such writes in `batch()` to
   get exactly one recompute per affected `Computed`, always from
   consistent upstream values.
+- **Deeper, cross-branch cascades inside `batch` can recompute once more
+  than strictly necessary — never inconsistently, and never with an extra
+  notification.** The flush mitigating the diamond glitch (above) processes
+  changes wave by wave; a `Computed` that is reachable through two
+  different paths in the same wave (e.g. one dependency two levels removed
+  from the write, and a second dependency only one level removed) can end
+  up recomputing that same, already-correct value a second time before the
+  flush settles. Every recompute still only ever sees fully consistent
+  upstream values (never a stale/mixed intermediate), and since the
+  redundant recompute always produces the identical value, it never
+  triggers a second notification to that `Computed`'s own listeners — only
+  the internal recompute count is affected, and only for graphs shaped
+  like this. A simple two-`Computed` diamond (see above) is unaffected and
+  always recomputes exactly once.
 - **`Computed` stays subscribed after its first read, until `close()`.**
   Reading `.value` (or attaching a listener) makes a `Computed` subscribe
   to its current dependencies indefinitely — it does not unsubscribe

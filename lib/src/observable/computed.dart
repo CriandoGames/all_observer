@@ -36,28 +36,7 @@ import 'observable_subscription.dart';
 /// observável diferente a cada execução é rastreado corretamente, assim
 /// como dentro do builder de um [Observer].
 ///
-/// **Diamond glitch**: outside an active `Observable.batch()`, a diamond
-/// dependency graph (two `Computed`s both derived from the same source,
-/// and a third depending on both) can observe one recompute per changed
-/// upstream branch, and — briefly, between those recomputes — a downstream
-/// listener may run with one branch already updated and the other still
-/// stale. Wrapping the writes that feed such a graph in
-/// `Observable.batch()` avoids this: recompute is deferred to flush time
-/// inside an active batch, so every affected `Computed` sees a fully
-/// consistent set of upstream values and recomputes at most once. See
-/// "Known limitations" in the README for a worked example.
-///
-/// **Glitch do diamante**: fora de um `Observable.batch()` ativo, um grafo
-/// de dependências em diamante (dois `Computed` derivados da mesma origem,
-/// e um terceiro dependendo de ambos) pode observar um recompute por ramo
-/// alterado, e — brevemente, entre esses recomputes — um listener a
-/// jusante pode rodar com um ramo já atualizado e o outro ainda
-/// desatualizado. Envolver as escritas que alimentam esse grafo em
-/// `Observable.batch()` evita isso: o recompute é adiado até o flush
-/// dentro de um batch ativo, então todo `Computed` afetado enxerga um
-/// conjunto totalmente consistente de valores a montante e recalcula no
-/// máximo uma vez. Veja "Known limitations" no README para um exemplo
-/// trabalhado.
+
 ///
 /// Example / Exemplo:
 /// ```dart

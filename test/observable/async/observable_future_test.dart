@@ -140,12 +140,32 @@ void main() {
         'AsyncData/AsyncError transition happens after the await gap, '
         'once the batch has already ended, and notifies on its own', () async {
       final Observable<int> sibling = Observable<int>(1);
-      final Completer<int> completer = Completer<int>();
+      // `futureFactory` itself is fixed (an indirection through the
+      // mutable `provider` variable it captures), since `ObservableFuture`
+      // doesn't let it be reassigned after construction. `provider` is set
+      // *before* `run()` ever executes (`autoStart: false`), so the
+      // constructor never invokes it while still unassigned.
+      late Future<int> Function() provider;
       final ObservableFuture<int> future = ObservableFuture<int>(
-        () => completer.future,
+        () => provider(),
         autoStart: false,
       );
 
+      // Resolve once, up front, *before* the batch: `future`'s value is
+      // then `AsyncData(1)`. Starting `run()` again inside the batch below
+      // transitions it to `AsyncLoading(previousData: 1)` — a state whose
+      // *content* genuinely differs from `AsyncData(1)` (unlike starting
+      // fresh from `AsyncLoading(previousData: null)` and immediately
+      // calling `run()` again, which would produce another
+      // `AsyncLoading(previousData: null)` — content-equal to the
+      // pre-existing one, and therefore not a write `Observable` would
+      // even notify for in the first place).
+      provider = () async => 1;
+      await future.run();
+      expect(future.value, const AsyncData<int>(1));
+
+      final Completer<int> completer = Completer<int>();
+      provider = () => completer.future;
       final List<String> events = <String>[];
       future.listen((AsyncState<int> _) => events.add('future'));
       sibling.listen((int _) => events.add('sibling'));
