@@ -43,6 +43,59 @@ ValueListenableBuilder<int>(
 AnimatedBuilder(animation: Listenable.merge([count, otherObservable]), ...);
 ```
 
+## Derived values with `Computed`
+
+```dart
+final firstName = 'Carlos'.obs;
+final lastName = 'Castro'.obs;
+final fullName = Computed(() => '${firstName.value} ${lastName.value}');
+
+Observer(() => Text(fullName.value)); // recomputes only when needed
+```
+
+`Computed<T>` is lazy (never runs before the first read), memoized
+(cached until a dependency notifies), reuses the same tracking mechanism
+as `Observer` (so conditional/dynamic dependencies work the same way),
+and only notifies its own listeners when the recomputed value actually
+differs from the previous one. Call `close()` to unsubscribe from all
+current dependencies.
+
+`Observable.select`-style derivation (e.g. `user.select((u) => u.name)`)
+is intentionally not a separate API: write it directly as
+`Computed(() => user.value.name)`.
+
+## Coalescing writes with `Observable.batch`
+
+```dart
+Observable.batch(() {
+  firstName.value = 'Carlos';
+  lastName.value = 'Castro';
+  age.value = 30;
+}); // manual listen()/ever() listeners fire exactly once, at the end
+```
+
+Writes still apply immediately and consistently inside the callback —
+only the *notification* to manual subscribers (`listen`, `ever`, etc.) is
+deferred and deduplicated. An `Observer` widget already coalesces
+multiple dependency changes into a single rebuild per frame on its own,
+so `batch()` mainly matters for manual subscriptions. Nested `batch()`
+calls are supported; if the callback throws, the pending notifications
+built up so far are discarded and the exception propagates normally.
+
+## Custom equality with `equals`
+
+```dart
+final price = Observable<double>(
+  9.99,
+  equals: (a, b) => (a - b).abs() < 0.01,
+);
+```
+
+By default, a write only notifies when the new value differs from the
+current one via `==`. Pass `equals` to use a different comparison — for
+example, a tolerance for floating-point values, or comparing only part of
+a larger object.
+
 ## Colored debug logs
 
 Enable `ObserverConfig.logging = true` during development to see reactivity
@@ -90,10 +143,13 @@ failures in CI.
 
 ## More
 
-- `ObservableList`, `ObservableMap`, `ObservableSet`: reactive collections; reading any member tracks it, mutating any member notifies.
+- `ObservableList`, `ObservableMap`, `ObservableSet`: reactive collections; reading any member tracks it, mutating any member notifies exactly once per call (bulk operations like `addAll`/`removeWhere`/`retainWhere` never notify per element).
+- `Computed<T>`: lazy, memoized derived values built on the same dependency tracker as `Observer`.
+- `Observable.batch`: coalesces multiple writes into one notification per changed observable, for manual subscribers.
 - `ObserverValue<T>`: local, self-contained reactive state without managing an observable's lifecycle separately.
 - `ever`, `once`, `debounce`, `interval`: workers for side effects driven by observable changes.
-- See `/example` for a runnable demo (counter, reactive list, worker, debug-log toggle).
+- A synchronous update cycle (A's listener writes B, B's listener writes A, ...) is stopped after a bounded notification depth with a descriptive error, instead of a raw stack overflow; an exception thrown inside one listener never stops the other listeners of the same observable from running.
+- See `/example` for a runnable demo (counter, reactive list, worker, debug-log toggle), and `/benchmark` for manual Stopwatch-based microbenchmarks.
 
 ## Contributing
 

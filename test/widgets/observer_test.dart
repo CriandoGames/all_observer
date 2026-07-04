@@ -177,5 +177,89 @@ void main() {
       await tester.pumpWidget(_wrap(Observer(() => const Text('static'))));
       expect(tester.takeException(), isNotNull);
     });
+
+    testWidgets('strictMode throws when a value write happens during '
+        'build', (tester) async {
+      ObserverConfig.strictMode = true;
+      final Observable<int> count = Observable<int>(0);
+      await tester.pumpWidget(
+        _wrap(
+          Observer(() {
+            if (count.value == 0) {
+              count.value = 1; // write during build: strictMode -> throws
+            }
+            return Text('${count.value}');
+          }),
+        ),
+      );
+      expect(tester.takeException(), isNotNull);
+    });
+  });
+
+  group('Observer memory / leak regression cases', () {
+    testWidgets('mounting and unmounting an Observer reading 3 observables '
+        'restores each observable listener count to its pre-mount value', (
+      tester,
+    ) async {
+      final Observable<int> a = Observable<int>(1);
+      final Observable<int> b = Observable<int>(2);
+      final Observable<int> c = Observable<int>(3);
+      expect(a.hasListeners, isFalse);
+      expect(b.hasListeners, isFalse);
+      expect(c.hasListeners, isFalse);
+
+      await tester.pumpWidget(
+        _wrap(
+          Observer(() => Text('${a.value}-${b.value}-${c.value}')),
+        ),
+      );
+      expect(a.hasListeners, isTrue);
+      expect(b.hasListeners, isTrue);
+      expect(c.hasListeners, isTrue);
+
+      await tester.pumpWidget(_wrap(const SizedBox()));
+      expect(a.hasListeners, isFalse);
+      expect(b.hasListeners, isFalse);
+      expect(c.hasListeners, isFalse);
+    });
+
+    testWidgets('unmounting while a notification is pending does not '
+        'throw and leaves no dangling listeners', (tester) async {
+      final Observable<int> count = Observable<int>(0);
+      await tester.pumpWidget(
+        _wrap(Observer(() => Text('${count.value}'))),
+      );
+      // Trigger a change, then unmount before the (possibly deferred)
+      // rebuild callback runs.
+      count.value = 1;
+      await tester.pumpWidget(_wrap(const SizedBox()));
+      await tester.pump();
+      expect(count.hasListeners, isFalse);
+    });
+
+    test('a builder that throws still assigns partial-build disposers, so '
+        'the next build starts from a clean, fully-disposed state '
+        '(regression: disposers must not be dropped on a thrown build)', () {
+      final Observable<int> a = Observable<int>(0);
+      final Observable<int> b = Observable<int>(0);
+      final TrackingContext outerContext = TrackingContext(() {});
+
+      // Simulate what _ObserverState.build does: track a builder that
+      // reads `a`, then throws before reading `b`.
+      expect(
+        () => DependencyTracker.track(outerContext, () {
+          a.value; // ignore: unused reads are the point of the trace
+          throw StateError('boom');
+        }),
+        throwsStateError,
+      );
+
+      // The context accumulated one disposer (for `a`) before throwing.
+      expect(outerContext.disposers, hasLength(1));
+      // Running that disposer must cleanly remove the listener from `a`.
+      outerContext.disposers.first();
+      expect(a.hasListeners, isFalse);
+      expect(b.hasListeners, isFalse);
+    });
   });
 }

@@ -44,6 +44,61 @@ ValueListenableBuilder<int>(
 AnimatedBuilder(animation: Listenable.merge([count, outroObservavel]), ...);
 ```
 
+## Valores derivados com `Computed`
+
+```dart
+final firstName = 'Carlos'.obs;
+final lastName = 'Castro'.obs;
+final fullName = Computed(() => '${firstName.value} ${lastName.value}');
+
+Observer(() => Text(fullName.value)); // recalcula só quando necessário
+```
+
+`Computed<T>` é preguiçoso (nunca roda antes da primeira leitura),
+memoizado (fica em cache até uma dependência notificar), reaproveita o
+mesmo mecanismo de rastreamento do `Observer` (então dependências
+condicionais/dinâmicas funcionam da mesma forma) e só notifica seus
+próprios listeners quando o valor recalculado realmente difere do
+anterior. Chame `close()` para cancelar a inscrição em todas as
+dependências atuais.
+
+Um `Observable.select` no estilo `user.select((u) => u.name)` foi
+propositalmente deixado de fora como API separada: escreva diretamente
+`Computed(() => user.value.name)`.
+
+## Agrupando escritas com `Observable.batch`
+
+```dart
+Observable.batch(() {
+  firstName.value = 'Carlos';
+  lastName.value = 'Castro';
+  age.value = 30;
+}); // listeners manuais (listen()/ever()) disparam uma única vez, no fim
+```
+
+As escritas ainda se aplicam imediatamente e de forma consistente dentro
+do callback — apenas a *notificação* para assinantes manuais (`listen`,
+`ever`, etc.) é adiada e deduplicada. Um widget `Observer` já agrupa
+múltiplas mudanças de dependência em um único rebuild por frame por conta
+própria, então `batch()` importa principalmente para subscrições manuais.
+Chamadas `batch()` aninhadas são suportadas; se o callback lançar uma
+exceção, as notificações pendentes construídas até então são descartadas
+e a exceção se propaga normalmente.
+
+## Igualdade customizada com `equals`
+
+```dart
+final price = Observable<double>(
+  9.99,
+  equals: (a, b) => (a - b).abs() < 0.01,
+);
+```
+
+Por padrão, uma escrita só notifica quando o novo valor difere do atual
+via `==`. Passe `equals` para usar uma comparação diferente — por exemplo,
+uma tolerância para valores de ponto flutuante, ou comparar apenas parte
+de um objeto maior.
+
 ## Logs de debug coloridos
 
 Habilite `ObserverConfig.logging = true` durante o desenvolvimento para ver
@@ -93,10 +148,13 @@ com um modo estrito opcional para times que querem falhas duras em CI.
 
 ## Mais
 
-- `ObservableList`, `ObservableMap`, `ObservableSet`: coleções reativas; ler qualquer membro rastreia, mutar qualquer membro notifica.
+- `ObservableList`, `ObservableMap`, `ObservableSet`: coleções reativas; ler qualquer membro rastreia, mutar qualquer membro notifica exatamente uma vez por chamada (operações em lote como `addAll`/`removeWhere`/`retainWhere` nunca notificam por elemento).
+- `Computed<T>`: valores derivados preguiçosos e memoizados, construídos sobre o mesmo rastreador de dependências do `Observer`.
+- `Observable.batch`: agrupa múltiplas escritas em uma única notificação por observável alterado, para assinantes manuais.
 - `ObserverValue<T>`: estado reativo local e autocontido, sem gerenciar o ciclo de vida de um observável separadamente.
 - `ever`, `once`, `debounce`, `interval`: workers para efeitos colaterais disparados por mudanças em observáveis.
-- Veja `/example` para uma demonstração executável (contador, lista reativa, worker, alternador de logs de debug).
+- Um ciclo de atualização síncrono (o listener de A escreve em B, o de B escreve em A, ...) é interrompido após uma profundidade de notificação limitada, com um erro descritivo, em vez de um stack overflow bruto; uma exceção lançada dentro de um listener nunca impede que os demais listeners do mesmo observável rodem.
+- Veja `/example` para uma demonstração executável (contador, lista reativa, worker, alternador de logs de debug), e `/benchmark` para microbenchmarks manuais baseados em Stopwatch.
 
 ## Contribuindo
 

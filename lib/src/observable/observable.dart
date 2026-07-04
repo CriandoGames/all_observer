@@ -1,6 +1,7 @@
 import 'package:all_observer/src/core/typedefs.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/batch_scope.dart';
 import '../core/dependency_tracker.dart';
 import '../core/listener_registry.dart';
 import '../logging/observer_config.dart';
@@ -33,6 +34,22 @@ import 'observable_subscription.dart';
 /// Para objetos mutáveis cujo estado interno mudou sem substituir a
 /// referência, chame [refresh] para forçar uma notificação.
 ///
+/// **Isolate safety**: like the rest of Dart, an [Observable] is confined
+/// to the isolate that created it. Writing to it from a different isolate
+/// (e.g. via a raw `Isolate.spawn`, not `compute`/`Isolate.run` which copy
+/// data instead of sharing references) does not work — there is no
+/// cross-isolate synchronization here, by design; use
+/// [SendPort]/[ReceivePort] or `compute` to move data between isolates and
+/// write to the observable back on its own isolate.
+///
+/// **Segurança entre isolates**: como o restante do Dart, um [Observable]
+/// é confinado ao isolate que o criou. Escrever nele a partir de um
+/// isolate diferente (ex.: via `Isolate.spawn` bruto, não `compute`/
+/// `Isolate.run`, que copiam dados em vez de compartilhar referências) não
+/// funciona — não há sincronização entre isolates aqui, por design; use
+/// [SendPort]/[ReceivePort] ou `compute` para mover dados entre isolates e
+/// escreva no observável de volta no seu próprio isolate.
+///
 /// Example / Exemplo:
 /// ```dart
 /// final count = 0.obs;
@@ -44,19 +61,61 @@ class Observable<T> implements ValueListenable<T> {
   /// used in debug logs and warnings; when omitted, a short hash-based
   /// label is used instead.
   ///
+  /// [equals] overrides the default `==` comparison used to decide whether
+  /// a write actually changed the value (and therefore should notify).
+  /// Useful for types whose `==` is not meaningful for this purpose (e.g.
+  /// comparing only a subset of fields, or floating-point values within a
+  /// tolerance). Defaults to `(a, b) => a == b`.
+  ///
   /// Cria um observável contendo [initialValue]. Um [name] opcional é
   /// usado nos logs e warnings de debug; quando omitido, um rótulo curto
   /// baseado no hash é usado.
-  Observable(T initialValue, {String? name})
+  ///
+  /// [equals] sobrescreve a comparação `==` padrão usada para decidir se
+  /// uma escrita realmente mudou o valor (e, portanto, deve notificar).
+  /// Útil para tipos cujo `==` não é significativo para este propósito
+  /// (ex.: comparar apenas um subconjunto de campos, ou valores de ponto
+  /// flutuante dentro de uma tolerância). Padrão: `(a, b) => a == b`.
+  Observable(T initialValue, {String? name, bool Function(T a, T b)? equals})
     : _value = initialValue,
-      _name = name {
+      _name = name,
+      _equals = equals ?? _defaultEquals {
     if (kDebugMode) {
       ObserverLogger.created(_label, _value);
     }
   }
 
+  static bool _defaultEquals<T>(T a, T b) => a == b;
+
+  /// Runs [action], coalescing every [Observable]/collection write inside
+  /// it so each distinct changed one notifies its manual [listen]/`ever`
+  /// listeners exactly once, after [action] returns — writes still apply
+  /// immediately, only the *notification* is deferred. Nested calls are
+  /// supported (only the outermost flushes); if [action] throws, the
+  /// pending queue is discarded and the exception propagates. Only affects
+  /// manual subscriptions — an [Observer] already coalesces rebuilds per
+  /// frame on its own.
+  ///
+  /// Executa [action], agrupando toda escrita em [Observable]/coleção
+  /// dentro dele para que cada uma distinta alterada notifique seus
+  /// listeners manuais ([listen]/`ever`) exatamente uma vez, após [action]
+  /// retornar — as escritas se aplicam imediatamente, só a *notificação* é
+  /// adiada. Chamadas aninhadas são suportadas (só a mais externa libera o
+  /// flush); se [action] lançar, a fila pendente é descartada e a exceção
+  /// se propaga. Afeta apenas subscrições manuais — um [Observer] já
+  /// agrupa rebuilds por frame por conta própria.
+  ///
+  /// ```dart
+  /// Observable.batch(() {
+  ///   firstName.value = 'Carlos';
+  ///   lastName.value = 'Castro';
+  /// }); // manual listeners fire exactly once at the end.
+  /// ```
+  static void batch(void Function() action) => BatchScope.run(action);
+
   final ListenerRegistry _registry = ListenerRegistry();
   final String? _name;
+  final bool Function(T a, T b) _equals;
   T _value;
   bool _isClosed = false;
 
@@ -97,30 +156,16 @@ class Observable<T> implements ValueListenable<T> {
       }
       return;
     }
-    if (_value == newValue) {
+    if (_equals(_value, newValue)) {
       return;
     }
-    _warnIfWritingDuringBuild();
+    ObserverLogger.checkWriteDuringBuild(_label);
     final T oldValue = _value;
     _value = newValue;
     if (kDebugMode) {
       ObserverLogger.updated(_label, oldValue, newValue);
     }
     notifyListeners();
-  }
-
-  void _warnIfWritingDuringBuild() {
-    if (!kDebugMode) {
-      return;
-    }
-    if (DependencyTracker.current != null) {
-      ObserverLogger.warn(
-        '$_label alterado DURANTE o build de um Observer.',
-        suggestion:
-            'Isso causa loop de rebuild. Mova a alteração para '
-            'fora do build.',
-      );
-    }
   }
 
   /// Shorthand for assigning [newValue], mirroring `observable(newValue)`.
@@ -148,18 +193,51 @@ class Observable<T> implements ValueListenable<T> {
 
   /// Subscribes [callback] to future value changes without going through
   /// an [Observer] widget. If [immediate] is `true`, [callback] also fires
-  /// once immediately with the current value.
+  /// once immediately with the current value. If this observable is
+  /// already [close]d, returns an already-canceled (inert) subscription
+  /// and never registers a listener — [immediate] still fires once, since
+  /// reading the last value is harmless.
   ///
   /// Inscreve [callback] para mudanças futuras de valor sem passar por um
   /// widget [Observer]. Se [immediate] for `true`, [callback] também
-  /// dispara uma vez imediatamente com o valor atual.
+  /// dispara uma vez imediatamente com o valor atual. Se este observável já
+  /// tiver sido [close]d, retorna uma subscrição já cancelada (inerte) e
+  /// nunca registra um listener — [immediate] ainda dispara uma vez, já que
+  /// ler o último valor é inofensivo.
+  /// [when], if provided, is checked before every invocation (including
+  /// the [immediate] one): [callback] only runs while `when(value)` is
+  /// `true`. This is a plain `if` guard around the call — no extra
+  /// tracking, no `Stream`/`where` involved — so it costs nothing beyond
+  /// the predicate call itself.
+  ///
+  /// [when], se fornecido, é checado antes de toda invocação (incluindo a
+  /// [immediate]): [callback] só roda enquanto `when(value)` for `true`.
+  /// Isso é uma simples guarda `if` em torno da chamada — nenhum
+  /// rastreamento extra, nenhum `Stream`/`where` envolvido — então não
+  /// custa nada além da própria chamada do predicado.
   ObservableSubscription listen(
     ObserverCallback<T> callback, {
     bool immediate = false,
+    bool Function(T value)? when,
   }) {
-    void listener() => callback(_value);
+    if (_isClosed) {
+      if (immediate && (when == null || when(_value))) {
+        callback(_value);
+      }
+      final ObservableSubscription inert = ObservableSubscription.fromDisposer(
+        () {},
+      );
+      inert.cancel();
+      return inert;
+    }
+    void listener() {
+      if (when == null || when(_value)) {
+        callback(_value);
+      }
+    }
+
     final void Function() dispose = _registry.add(listener);
-    if (immediate) {
+    if (immediate && (when == null || when(_value))) {
       callback(_value);
     }
     _warnIfPossibleLeak();
@@ -196,7 +274,7 @@ class Observable<T> implements ValueListenable<T> {
   /// [value].
   @protected
   void notifyListeners() {
-    _registry.notifyAll();
+    _registry.notifyOrQueue();
   }
 
   /// Disposes this observable: removes all listeners and marks it

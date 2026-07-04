@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../core/dependency_tracker.dart';
+import '../errors/observer_error.dart';
 import 'observer_config.dart';
 
 /// ANSI escape codes used by [ObserverLogger] to colorize terminal output.
@@ -64,8 +66,7 @@ abstract final class ObserverLogger {
     if (!ObserverConfig.logging || !_allowed(ObserverLogLevel.updates)) {
       return;
     }
-    final String values =
-        _paint(_AnsiColor.magenta, '$oldValue → $newValue');
+    final String values = _paint(_AnsiColor.magenta, '$oldValue → $newValue');
     debugPrint(_prefixed(_paint(_AnsiColor.cyan, '↻ $label: $values')));
   }
 
@@ -94,9 +95,50 @@ abstract final class ObserverLogger {
     }
     debugPrint(
       _prefixed(
-        _paint(_AnsiColor.gray, '✖ $label descartado ($listenerCount '
-            'listeners removidos)'),
+        _paint(
+          _AnsiColor.gray,
+          '✖ $label descartado ($listenerCount '
+          'listeners removidos)',
+        ),
       ),
+    );
+  }
+
+  /// Checks whether a write/mutation is happening while an [Observer] (or
+  /// any tracked builder) is currently running, and reacts accordingly:
+  /// when [ObserverConfig.strictMode] is `true`, throws an [ObserverError]
+  /// instead of only warning — useful in CI/tests to turn this common
+  /// mistake into a hard failure. Otherwise emits the usual non-fatal
+  /// warning. Used by both [Observable.value]'s setter and every reactive
+  /// collection's mutating members, so the check covers `value =`
+  /// reassignment as well as collection mutations (`add`, `addAll`,
+  /// `clear`, ...).
+  ///
+  /// Verifica se uma escrita/mutação está ocorrendo enquanto um [Observer]
+  /// (ou qualquer builder rastreado) está em execução, e reage de acordo:
+  /// quando [ObserverConfig.strictMode] for `true`, lança um
+  /// [ObserverError] em vez de apenas emitir warning — útil em CI/testes
+  /// para transformar esse erro comum em falha dura. Caso contrário, emite
+  /// o warning não fatal de sempre. Usado tanto pelo setter de
+  /// [Observable.value] quanto por todo membro mutante das coleções
+  /// reativas, então a checagem cobre tanto a reatribuição de `value =`
+  /// quanto mutações de coleção (`add`, `addAll`, `clear`, ...).
+  static void checkWriteDuringBuild(String label) {
+    if (DependencyTracker.current == null) {
+      return;
+    }
+    final String message = '$label alterado DURANTE o build de um Observer.';
+    if (ObserverConfig.strictMode) {
+      throw ObserverError(message);
+    }
+    if (!kDebugMode) {
+      return;
+    }
+    warn(
+      message,
+      suggestion:
+          'Isso causa loop de rebuild. Mova a alteração para '
+          'fora do build.',
     );
   }
 

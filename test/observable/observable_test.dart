@@ -96,5 +96,117 @@ void main() {
       obs.value = 1;
       expect(calls, 1);
     });
+
+    test('listen on an already-closed observable returns an inert '
+        'subscription and does not register a listener', () {
+      final Observable<int> obs = Observable<int>(0);
+      obs.close();
+      final subscription = obs.listen((int _) {});
+      expect(subscription.isActive, isFalse);
+    });
+
+    test('listen with a when predicate only invokes the callback while '
+        'the predicate holds', () {
+      final Observable<int> obs = Observable<int>(0);
+      final List<int> seen = <int>[];
+      obs.listen(seen.add, when: (int v) => v.isEven);
+      obs.value = 1; // odd: filtered out
+      obs.value = 2; // even: passes
+      obs.value = 3; // odd: filtered out
+      obs.value = 4; // even: passes
+      expect(seen, <int>[2, 4]);
+    });
+
+    test('a custom equals parameter controls whether a write notifies', () {
+      final Observable<double> price = Observable<double>(
+        1.0,
+        equals: (double a, double b) => (a - b).abs() < 0.01,
+      );
+      int calls = 0;
+      price.addListener(() => calls++);
+      price.value = 1.005; // within tolerance: treated as unchanged
+      expect(calls, 0);
+      expect(price.value, 1.0);
+      price.value = 1.5; // outside tolerance: notifies
+      expect(calls, 1);
+      expect(price.value, 1.5);
+    });
+  });
+
+  group('Observable.batch', () {
+    test('coalesces multiple writes into a single notification per '
+        'observable', () {
+      final Observable<String> firstName = Observable<String>('a');
+      final Observable<String> lastName = Observable<String>('b');
+      int firstNameCalls = 0;
+      int lastNameCalls = 0;
+      firstName.addListener(() => firstNameCalls++);
+      lastName.addListener(() => lastNameCalls++);
+
+      Observable.batch(() {
+        firstName.value = 'Carlos';
+        firstName.value = 'Carlos2';
+        lastName.value = 'Castro';
+      });
+
+      expect(firstNameCalls, 1);
+      expect(lastNameCalls, 1);
+      expect(firstName.value, 'Carlos2');
+      expect(lastName.value, 'Castro');
+    });
+
+    test('writes are applied immediately inside batch, only notification '
+        'is deferred', () {
+      final Observable<int> count = Observable<int>(0);
+      final List<int> seenInsideBatch = <int>[];
+      Observable.batch(() {
+        count.value = 1;
+        seenInsideBatch.add(count.value);
+        count.value = 2;
+        seenInsideBatch.add(count.value);
+      });
+      expect(seenInsideBatch, <int>[1, 2]);
+    });
+
+    test('nested batch calls only flush once, at the outermost level', () {
+      final Observable<int> count = Observable<int>(0);
+      int calls = 0;
+      count.addListener(() => calls++);
+      Observable.batch(() {
+        Observable.batch(() {
+          count.value = 1;
+        });
+        count.value = 2;
+      });
+      expect(calls, 1);
+      expect(count.value, 2);
+    });
+
+    test('an exception thrown inside batch restores the depth counter and '
+        'discards pending notifications, so a later batch works normally', () {
+      final Observable<int> count = Observable<int>(0);
+      int calls = 0;
+      count.addListener(() => calls++);
+
+      expect(
+        () => Observable.batch(() {
+          count.value = 1;
+          throw StateError('boom');
+        }),
+        throwsStateError,
+      );
+      // Pending notification for the failed batch is discarded.
+      expect(calls, 0);
+      // The value write itself still applied (writes are not transactional).
+      expect(count.value, 1);
+
+      // A subsequent, successful batch works normally: proves the depth
+      // counter was restored via `finally` rather than left corrupted.
+      Observable.batch(() {
+        count.value = 2;
+      });
+      expect(calls, 1);
+      expect(count.value, 2);
+    });
   });
 }

@@ -57,11 +57,17 @@ abstract final class ObserverConfig {
   /// durante build, vazamento provável) são impressos. Padrão: `true`.
   static bool warnings = true;
 
-  /// Whether an [Observer] that reads no observable throws instead of only
-  /// warning. Useful in CI/tests. Default: `false`.
+  /// Whether misuse cases that normally only warn instead throw an
+  /// [ObserverError]: an [Observer] that reads no observable, and a write
+  /// (`value =` or a collection mutation) happening during an [Observer]
+  /// build. Useful in CI/tests to turn common mistakes into hard failures.
+  /// Default: `false`.
   ///
-  /// Se um [Observer] que não lê nenhum observável lança exceção em vez de
-  /// apenas emitir warning. Útil em CI/testes. Padrão: `false`.
+  /// Se casos de mau uso que normalmente só emitem warning passam a lançar
+  /// um [ObserverError]: um [Observer] que não lê nenhum observável, e uma
+  /// escrita (`value =` ou mutação de coleção) acontecendo durante o build
+  /// de um [Observer]. Útil em CI/testes para transformar erros comuns em
+  /// falhas duras. Padrão: `false`.
   static bool strictMode = false;
 
   /// Listener count above which a "possible leak" warning is emitted for an

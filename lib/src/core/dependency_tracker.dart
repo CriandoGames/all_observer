@@ -75,14 +75,37 @@ abstract final class DependencyTracker {
   /// Runs [action] with [context] pushed onto the tracking stack, popping
   /// it afterwards even if [action] throws.
   ///
+  /// In debug mode, a top-level call (one that starts with an empty stack)
+  /// asserts that the stack is empty again once popped back to depth zero.
+  /// This is a leak canary: static/global state must never retain a
+  /// [TrackingContext] tied to an unmounted [Element] or [BuildContext]
+  /// across frames — if it did, this assertion would fail the next time a
+  /// top-level track runs.
+  ///
   /// Executa [action] com [context] empilhado no rastreador, desempilhando
   /// mesmo se [action] lançar uma exceção.
+  ///
+  /// Em modo debug, uma chamada de nível superior (que começa com a pilha
+  /// vazia) garante, via `assert`, que a pilha volte a ficar vazia após ser
+  /// desempilhada até a profundidade zero. Isso funciona como um canário de
+  /// vazamento: estado estático/global nunca deve reter um [TrackingContext]
+  /// vinculado a um [Element] ou [BuildContext] desmontado entre frames —
+  /// se isso ocorresse, esta asserção falharia na próxima chamada de
+  /// rastreamento de nível superior.
   static R track<R>(TrackingContext context, R Function() action) {
+    final bool isTopLevel = _stack.isEmpty;
     _stack.add(context);
     try {
       return action();
     } finally {
       _stack.removeLast();
+      if (isTopLevel) {
+        assert(
+          _stack.isEmpty,
+          'DependencyTracker leaked a TrackingContext: the stack should be '
+          'empty after a top-level track() call returns.',
+        );
+      }
     }
   }
 

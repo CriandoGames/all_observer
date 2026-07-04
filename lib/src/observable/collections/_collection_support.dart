@@ -54,13 +54,31 @@ mixin CollectionSupport {
       }
       return;
     }
-    _registry.notifyAll();
+    ObserverLogger.checkWriteDuringBuild(debugLabel);
+    _registry.notifyOrQueue();
   }
 
-  /// Subscribes [callback] to future mutations.
+  /// Subscribes [callback] to future mutations. If this collection is
+  /// already [close]d, returns an already-canceled (inert) subscription
+  /// and never registers a listener.
   ///
-  /// Inscreve [callback] para mutações futuras.
-  ObservableSubscription listen(VoidCallback callback, {bool immediate = false}) {
+  /// Inscreve [callback] para mutações futuras. Se esta coleção já tiver
+  /// sido [close]d, retorna uma subscrição já cancelada (inerte) e nunca
+  /// registra um listener.
+  ObservableSubscription listen(
+    VoidCallback callback, {
+    bool immediate = false,
+  }) {
+    if (_isClosed) {
+      if (immediate) {
+        callback();
+      }
+      final ObservableSubscription inert = ObservableSubscription.fromDisposer(
+        () {},
+      );
+      inert.cancel();
+      return inert;
+    }
     final void Function() dispose = _registry.add(callback);
     if (immediate) {
       callback();

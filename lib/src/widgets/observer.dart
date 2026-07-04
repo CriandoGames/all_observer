@@ -97,13 +97,27 @@ class _ObserverState extends State<Observer> {
     final TrackingContext trackingContext = TrackingContext(
       _onDependencyChanged,
     );
-    final Widget result = DependencyTracker.track(
-      trackingContext,
-      widget.builder,
-    );
-    _disposers = trackingContext.disposers;
-    _checkTracking(trackingContext);
-    return result;
+    try {
+      final Widget result = DependencyTracker.track(
+        trackingContext,
+        widget.builder,
+      );
+      _checkTracking(trackingContext);
+      return result;
+    } finally {
+      // Assign disposers even if `widget.builder` threw above: whatever
+      // observables were read before the throw must still be disposed of
+      // on the next build/unmount, not silently dropped. The tracking
+      // stack itself is already guaranteed to pop via
+      // DependencyTracker.track's own `finally`.
+      //
+      // Atribui os disposers mesmo se `widget.builder` lançar acima: quaisquer
+      // observáveis lidos antes do erro ainda devem ser descartados no
+      // próximo build/unmount, não silenciosamente perdidos. A pilha de
+      // rastreamento em si já tem garantia de ser desempilhada pelo
+      // próprio `finally` de DependencyTracker.track.
+      _disposers = trackingContext.disposers;
+    }
   }
 
   void _checkTracking(TrackingContext trackingContext) {

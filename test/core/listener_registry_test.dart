@@ -62,5 +62,40 @@ void main() {
       final ListenerRegistry registry = ListenerRegistry();
       expect(() => registry.notifyAll(), returnsNormally);
     });
+
+    test('an exception thrown by one listener does not stop the others '
+        'from running, and does not propagate out of notifyAll', () {
+      final ListenerRegistry registry = ListenerRegistry();
+      final List<String> order = <String>[];
+      registry.add(() => order.add('first'));
+      registry.add(() => throw StateError('boom'));
+      registry.add(() => order.add('third'));
+
+      expect(() => registry.notifyAll(), returnsNormally);
+      expect(order, <String>['first', 'third']);
+    });
+
+    test('notifyAll does not overflow the stack on a synchronous update '
+        'cycle (A notifies B, B notifies A, ...); it stops at '
+        'kMaxNotificationDepth instead', () {
+      final ListenerRegistry a = ListenerRegistry();
+      final ListenerRegistry b = ListenerRegistry();
+      int aRuns = 0;
+      int bRuns = 0;
+      a.add(() {
+        aRuns++;
+        b.notifyAll();
+      });
+      b.add(() {
+        bRuns++;
+        a.notifyAll();
+      });
+
+      expect(() => a.notifyAll(), returnsNormally);
+      // Depth guard caps recursion at kMaxNotificationDepth; both counters
+      // stay bounded instead of growing until a StackOverflowError.
+      expect(aRuns, lessThanOrEqualTo(kMaxNotificationDepth + 1));
+      expect(bRuns, lessThanOrEqualTo(kMaxNotificationDepth + 1));
+    });
   });
 }

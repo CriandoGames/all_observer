@@ -31,6 +31,9 @@ class ObservableMap<K, V> extends MapBase<K, V> with CollectionSupport {
 
   @override
   void operator []=(K key, V value) {
+    if (_map.containsKey(key) && _map[key] == value) {
+      return;
+    }
     _map[key] = value;
     notifyChanged();
   }
@@ -47,14 +50,38 @@ class ObservableMap<K, V> extends MapBase<K, V> with CollectionSupport {
 
   @override
   void clear() {
+    if (_map.isEmpty) {
+      return;
+    }
     _map.clear();
     notifyChanged();
   }
 
   @override
   void addAll(Map<K, V> other) {
+    if (other.isEmpty) {
+      return;
+    }
     _map.addAll(other);
     notifyChanged();
+  }
+
+  /// Removes every entry whose key/value satisfy [test], notifying at most
+  /// once regardless of how many entries were removed. This overrides
+  /// `MapBase`'s default implementation, which removes one entry at a time
+  /// and would otherwise notify per entry.
+  ///
+  /// Remove toda entrada cuja chave/valor satisfaçam [test], notificando no
+  /// máximo uma vez independente de quantas entradas foram removidas.
+  /// Sobrescreve a implementação padrão de `MapBase`, que remove uma
+  /// entrada por vez e, de outra forma, notificaria por entrada.
+  @override
+  void removeWhere(bool Function(K key, V value) test) {
+    final int before = _map.length;
+    _map.removeWhere(test);
+    if (_map.length != before) {
+      notifyChanged();
+    }
   }
 
   @override
