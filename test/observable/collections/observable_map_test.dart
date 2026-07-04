@@ -119,4 +119,42 @@ void main() {
       expect(map['a'], 1);
     });
   });
+
+  group('ObservableMap close', () {
+    test('close stops further notifications', () {
+      final ObservableMap<String, int> map = ObservableMap<String, int>();
+      int calls = 0;
+      map.listen(() => calls++);
+      map.close();
+      map['a'] = 1;
+      expect(calls, 0);
+    });
+
+    test('listen on an already-closed map returns an inert subscription '
+        'and does not register a listener', () {
+      final ObservableMap<String, int> map = ObservableMap<String, int>();
+      map.close();
+      final subscription = map.listen(() {});
+      expect(subscription.isActive, isFalse);
+    });
+
+    test('close is idempotent: calling it twice does not throw', () {
+      final ObservableMap<String, int> map = ObservableMap<String, int>();
+      map.listen(() {});
+      map.close();
+      expect(map.close, returnsNormally);
+      expect(map.isClosed, isTrue);
+    });
+
+    test('a mutation attempted after close is a silent no-op: the '
+        'underlying data is unchanged and no exception is thrown', () {
+      final ObservableMap<String, int> map = ObservableMap<String, int>(
+        <String, int>{'a': 1},
+      );
+      map.close();
+      expect(() => map['b'] = 2, returnsNormally);
+      expect(() => map.remove('a'), returnsNormally);
+      expect(map, <String, int>{'a': 1});
+    });
+  });
 }

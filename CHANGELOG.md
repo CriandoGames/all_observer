@@ -38,6 +38,11 @@ Fixed (performance/correctness):
 - `listen()` on an already-`close()`d `Observable`/collection now returns
   an inert (already-canceled) subscription instead of silently registering
   a listener that can never fire.
+- `ObservableList`/`ObservableMap`/`ObservableSet`: a mutation attempted
+  after `close()` is now a full no-op (the underlying data is left
+  untouched, matching `Observable.value`'s setter) instead of only
+  suppressing the notification while still mutating the closed
+  collection's data underneath.
 - Documented, in `Observable`'s dartdoc, that writing to an observable
   from a different isolate does not work (no cross-isolate
   synchronization is attempted).

@@ -108,4 +108,32 @@ void main() {
       expect(set, <int>{1});
     });
   });
+
+  group('ObservableSet close', () {
+    test('close stops further notifications', () {
+      final ObservableSet<int> set = ObservableSet<int>();
+      int calls = 0;
+      set.listen(() => calls++);
+      set.close();
+      set.add(1);
+      expect(calls, 0);
+    });
+
+    test('close is idempotent: calling it twice does not throw', () {
+      final ObservableSet<int> set = ObservableSet<int>();
+      set.listen(() {});
+      set.close();
+      expect(set.close, returnsNormally);
+      expect(set.isClosed, isTrue);
+    });
+
+    test('a mutation attempted after close is a silent no-op: the '
+        'underlying data is unchanged and no exception is thrown', () {
+      final ObservableSet<int> set = ObservableSet<int>(<int>{1, 2});
+      set.close();
+      expect(() => set.add(3), returnsNormally);
+      expect(() => set.remove(1), returnsNormally);
+      expect(set, <int>{1, 2});
+    });
+  });
 }
