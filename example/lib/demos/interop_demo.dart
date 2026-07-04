@@ -36,9 +36,7 @@ class _InteropDemoState extends State<InteropDemo> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text(
-            'A single Observable<int> driving two different widgets:',
-          ),
+          const Text('A single Observable<int> driving two different widgets:'),
           const SizedBox(height: 16),
           Card(
             child: Padding(
@@ -47,8 +45,12 @@ class _InteropDemoState extends State<InteropDemo> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   const Text('all_observer Observer:'),
-                  Observer(() => Text('${_shared.value}',
-                      style: const TextStyle(fontSize: 24))),
+                  Observer(
+                    () => Text(
+                      '${_shared.value}',
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
                 ],
               ),
             ),

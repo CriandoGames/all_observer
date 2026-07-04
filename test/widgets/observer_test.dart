@@ -14,9 +14,7 @@ void main() {
   group('Observer basic reactivity', () {
     testWidgets('rebuilds when a read observable changes', (tester) async {
       final Observable<int> count = Observable<int>(0);
-      await tester.pumpWidget(
-        _wrap(Observer(() => Text('${count.value}'))),
-      );
+      await tester.pumpWidget(_wrap(Observer(() => Text('${count.value}'))));
       expect(find.text('0'), findsOneWidget);
       count.value = 1;
       await tester.pump();
@@ -48,9 +46,7 @@ void main() {
       final Observable<int> a = Observable<int>(1);
       final Observable<int> b = Observable<int>(2);
       await tester.pumpWidget(
-        _wrap(
-          Observer(() => Text(useA.value ? '${a.value}' : '${b.value}')),
-        ),
+        _wrap(Observer(() => Text(useA.value ? '${a.value}' : '${b.value}'))),
       );
       expect(find.text('1'), findsOneWidget);
 
@@ -74,9 +70,7 @@ void main() {
       tester,
     ) async {
       final Observable<int> count = Observable<int>(0);
-      await tester.pumpWidget(
-        _wrap(Observer(() => Text('${count.value}'))),
-      );
+      await tester.pumpWidget(_wrap(Observer(() => Text('${count.value}'))));
       await tester.pumpWidget(_wrap(const SizedBox()));
       expect(count.hasListeners, isFalse);
       // Should not throw even though nothing is listening anymore.
@@ -89,9 +83,7 @@ void main() {
     testWidgets('does not crash when the observable changes right before '
         'the widget is unmounted', (tester) async {
       final Observable<int> count = Observable<int>(0);
-      await tester.pumpWidget(
-        _wrap(Observer(() => Text('${count.value}'))),
-      );
+      await tester.pumpWidget(_wrap(Observer(() => Text('${count.value}'))));
       count.value = 1;
       await tester.pumpWidget(_wrap(const SizedBox()));
       await tester.pump();
@@ -209,9 +201,7 @@ void main() {
       expect(c.hasListeners, isFalse);
 
       await tester.pumpWidget(
-        _wrap(
-          Observer(() => Text('${a.value}-${b.value}-${c.value}')),
-        ),
+        _wrap(Observer(() => Text('${a.value}-${b.value}-${c.value}'))),
       );
       expect(a.hasListeners, isTrue);
       expect(b.hasListeners, isTrue);
@@ -226,9 +216,7 @@ void main() {
     testWidgets('unmounting while a notification is pending does not '
         'throw and leaves no dangling listeners', (tester) async {
       final Observable<int> count = Observable<int>(0);
-      await tester.pumpWidget(
-        _wrap(Observer(() => Text('${count.value}'))),
-      );
+      await tester.pumpWidget(_wrap(Observer(() => Text('${count.value}'))));
       // Trigger a change, then unmount before the (possibly deferred)
       // rebuild callback runs.
       count.value = 1;

@@ -62,7 +62,10 @@ void main() {
       final ListenerRegistry registry = ListenerRegistry();
       int rebuilds = 0;
       final TrackingContext context = TrackingContext(() => rebuilds++);
-      DependencyTracker.track(context, () => DependencyTracker.reportRead(registry));
+      DependencyTracker.track(
+        context,
+        () => DependencyTracker.reportRead(registry),
+      );
       registry.notifyAll();
       expect(rebuilds, 1);
     });

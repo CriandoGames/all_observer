@@ -210,8 +210,21 @@ class Observable<T> implements ValueListenable<T> {
   /// Forces listener notification without changing [value]. Use this after
   /// mutating a referenced object's internal state in place.
   ///
+  /// Subclasses may extend the semantics of [refresh] beyond a simple
+  /// notification. For example, [ObservableFuture.refresh] re-runs the
+  /// underlying `Future` factory instead of only notifying — callers can
+  /// always rely on [refresh] meaning "make listeners aware that something
+  /// changed", while subclasses decide what "changed" entails for their type.
+  ///
   /// Força a notificação dos listeners sem alterar [value]. Use após
   /// mutar o estado interno de um objeto referenciado, no próprio lugar.
+  ///
+  /// Subclasses podem estender a semântica de [refresh] além de uma simples
+  /// notificação. Por exemplo, [ObservableFuture.refresh] re-executa a
+  /// factory de `Future` subjacente em vez de apenas notificar — quem chama
+  /// pode sempre contar com [refresh] significando "avisar os listeners que
+  /// algo mudou", enquanto subclasses decidem o que "mudou" implica para
+  /// seu tipo.
   void refresh() {
     if (_isClosed) {
       return;

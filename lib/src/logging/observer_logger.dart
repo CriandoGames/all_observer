@@ -167,9 +167,7 @@ abstract final class ObserverLogger {
     if (!kDebugMode || !ObserverConfig.warnings) {
       return;
     }
-    debugPrint(
-      _prefixed(_paint(_AnsiColor.redBold, '✖ $context: $error')),
-    );
+    debugPrint(_prefixed(_paint(_AnsiColor.redBold, '✖ $context: $error')));
   }
 
   /// Logs a misuse warning with an optional indented suggestion line.

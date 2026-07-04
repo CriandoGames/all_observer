@@ -9,9 +9,7 @@ void main() {
   ) async {
     final ObservableInt count = 0.obs;
     await tester.pumpWidget(
-      MaterialApp(
-        home: Observer(() => Text('${count.value}')),
-      ),
+      MaterialApp(home: Observer(() => Text('${count.value}'))),
     );
     expect(find.text('0'), findsOneWidget);
     count.value++;

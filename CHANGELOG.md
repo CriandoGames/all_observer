@@ -1,4 +1,35 @@
+## 1.1.1
+
+Patch release — no breaking changes, no new external dependencies.
+
+Bug fixes (audit):
+
+- **T1.1 — Flush wave limit (CRITICAL):** `_flushPending` in `batch_scope.dart`
+  now has a bounded iteration limit (`kMaxFlushWaves = 100`). A mutual cycle
+  `a.listen((v)=>b.value=v+1)` + `b.listen((v)=>a.value=v+1)` inside a
+  `batch()` previously caused an infinite loop because `kMaxNotificationDepth`
+  only guards nested call-stack recursion, not iterative `while` waves. The
+  new guard detects the wave overflow, clears pending queues, and reports a
+  descriptive bilingual `FlutterError` instead of hanging indefinitely.
+- **T1.2 — `previousData` survives chained `run()` calls:** calling
+  `ObservableFuture.run()` a second time before the first completes previously
+  silently erased the stale value (`.valueOrNull` returned `null` when state
+  was already `AsyncLoading`). Fixed via `_previousDataFromCurrent()` helper:
+  `AsyncData` → preserve its value; `AsyncLoading` → propagate its own
+  `previousData`; `AsyncError` → `null` (documented deliberate choice).
+
+Documentation:
+
+- **T1.3 — `Observable.refresh()` polymorphic semantics:** new bilingual
+  paragraph documenting that subclasses may extend `refresh()` beyond a simple
+  notification (e.g. `ObservableFuture.refresh` re-runs the fetch). No code
+  change.
+
+Tests: +7 new tests (4 for T1.1 wave-limit scenarios, 3 for T1.2 chained
+`run()` cases); total 163.
+
 ## 1.1.0
+
 
 Additive release — no breaking changes, no new external dependencies.
 

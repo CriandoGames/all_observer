@@ -25,9 +25,7 @@ void main() {
           Observer.withChild(
             builder: (context, child) {
               builderCalls++;
-              return Column(
-                children: <Widget>[Text('${count.value}'), child],
-              );
+              return Column(children: <Widget>[Text('${count.value}'), child]);
             },
             child: staticChild,
           ),
