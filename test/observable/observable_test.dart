@@ -1,7 +1,35 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:all_observer/src/core/dependency_tracker.dart';
+import 'package:all_observer/src/core/listener_registry.dart';
 import 'package:all_observer/src/logging/observer_config.dart';
 import 'package:all_observer/src/observable/observable.dart';
+import 'package:all_observer/src/observable/observable_subscription.dart';
+
+/// Temporarily replaces [FlutterError.onError] with a capturing handler for
+/// the duration of [run], restoring the previous handler afterwards. See
+/// the identical helper in `listener_registry_test.dart` for why this is
+/// needed: `flutter_test`'s default handler fails the current test whenever
+/// [FlutterError.reportError] is called, even when that call is the
+/// expected behavior under test.
+///
+/// Substitui temporariamente [FlutterError.onError] por um handler que
+/// captura os erros durante [run], restaurando o handler anterior depois.
+/// Ver o helper idêntico em `listener_registry_test.dart` para o motivo:
+/// o handler padrão do `flutter_test` falha o teste atual sempre que
+/// [FlutterError.reportError] é chamado, mesmo quando essa chamada é o
+/// comportamento esperado sendo testado.
+List<FlutterErrorDetails> _captureReportedErrors(void Function() run) {
+  final List<FlutterErrorDetails> reported = <FlutterErrorDetails>[];
+  final FlutterExceptionHandler? previous = FlutterError.onError;
+  FlutterError.onError = reported.add;
+  try {
+    run();
+  } finally {
+    FlutterError.onError = previous;
+  }
+  return reported;
+}
 
 void main() {
   setUp(ObserverConfig.reset);
@@ -207,6 +235,79 @@ void main() {
       });
       expect(calls, 1);
       expect(count.value, 2);
+    });
+  });
+
+  group('Observable robustness (update cycles / listener mutation)', () {
+    test('a synchronous update cycle between two Observables (A writes B, '
+        'B writes A, ...) is stopped by the shared notification-depth '
+        'guard instead of overflowing the stack', () {
+      final Observable<int> a = Observable<int>(0);
+      final Observable<int> b = Observable<int>(0);
+      int aRuns = 0;
+      int bRuns = 0;
+      a.listen((int _) {
+        aRuns++;
+        b.value = b.value + 1;
+      });
+      b.listen((int _) {
+        bRuns++;
+        a.value = a.value + 1;
+      });
+
+      final List<FlutterErrorDetails> reported = _captureReportedErrors(
+        () => expect(() => a.value = 1, returnsNormally),
+      );
+
+      // Depth guard caps recursion at kMaxNotificationDepth; both counters
+      // stay bounded instead of growing until a StackOverflowError.
+      expect(aRuns, lessThanOrEqualTo(kMaxNotificationDepth + 1));
+      expect(bRuns, lessThanOrEqualTo(kMaxNotificationDepth + 1));
+      expect(reported, hasLength(1));
+      expect(reported.single.exception, isA<FlutterError>());
+    });
+
+    test('a listener that cancels itself during notification only stops '
+        'receiving future notifications, never affecting the one in '
+        'progress; a listener added mid-notification only fires on the '
+        'next one', () {
+      final Observable<int> obs = Observable<int>(0);
+      final List<String> order = <String>[];
+
+      late ObservableSubscription first;
+      first = obs.listen((int _) {
+        order.add('first');
+        first.cancel();
+      });
+      obs.listen((int _) => order.add('second'));
+
+      expect(() => obs.value = 1, returnsNormally);
+      // Both still ran during this notification, even though `first`
+      // canceled itself partway through.
+      expect(order, <String>['first', 'second']);
+
+      order.clear();
+      obs.value = 2;
+      // `first` no longer runs; `second` still does.
+      expect(order, <String>['second']);
+    });
+
+    test('a listener added by another listener during notification only '
+        'fires starting on the next notification', () {
+      final Observable<int> obs = Observable<int>(0);
+      final List<String> order = <String>[];
+
+      obs.listen((int _) {
+        order.add('outer');
+        obs.listen((int _) => order.add('added-mid-notify'));
+      });
+
+      expect(() => obs.value = 1, returnsNormally);
+      expect(order, <String>['outer']);
+
+      order.clear();
+      obs.value = 2;
+      expect(order, <String>['outer', 'added-mid-notify']);
     });
   });
 }
