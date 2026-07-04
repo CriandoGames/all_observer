@@ -14,8 +14,8 @@ class ObservableSet<E> extends SetBase<E> with CollectionSupport {
   ///
   /// Cria um [ObservableSet] envolvendo uma cópia de [initial].
   ObservableSet([Set<E>? initial, String? name])
-      : _set = Set<E>.of(initial ?? <E>{}),
-        _name = name;
+    : _set = Set<E>.of(initial ?? <E>{}),
+      _name = name;
 
   final Set<E> _set;
   final String? _name;
@@ -25,6 +25,9 @@ class ObservableSet<E> extends SetBase<E> with CollectionSupport {
 
   @override
   bool add(E value) {
+    if (isMutationBlocked) {
+      return false;
+    }
     final bool added = _set.add(value);
     if (added) {
       notifyChanged();
@@ -58,6 +61,9 @@ class ObservableSet<E> extends SetBase<E> with CollectionSupport {
 
   @override
   bool remove(Object? value) {
+    if (isMutationBlocked) {
+      return false;
+    }
     final bool removed = _set.remove(value);
     if (removed) {
       notifyChanged();
@@ -67,7 +73,7 @@ class ObservableSet<E> extends SetBase<E> with CollectionSupport {
 
   @override
   void clear() {
-    if (_set.isEmpty) {
+    if (_set.isEmpty || isMutationBlocked) {
       return;
     }
     _set.clear();
@@ -85,6 +91,9 @@ class ObservableSet<E> extends SetBase<E> with CollectionSupport {
   /// de outra forma, notificaria por elemento recém-adicionado.
   @override
   void addAll(Iterable<E> elements) {
+    if (isMutationBlocked) {
+      return;
+    }
     final int before = _set.length;
     _set.addAll(elements);
     if (_set.length != before) {
@@ -98,6 +107,9 @@ class ObservableSet<E> extends SetBase<E> with CollectionSupport {
   /// vez.
   @override
   void removeWhere(bool Function(E element) test) {
+    if (isMutationBlocked) {
+      return;
+    }
     final int before = _set.length;
     _set.removeWhere(test);
     if (_set.length != before) {
@@ -111,6 +123,9 @@ class ObservableSet<E> extends SetBase<E> with CollectionSupport {
   /// máximo uma vez.
   @override
   void retainWhere(bool Function(E element) test) {
+    if (isMutationBlocked) {
+      return;
+    }
     final int before = _set.length;
     _set.retainWhere(test);
     if (_set.length != before) {

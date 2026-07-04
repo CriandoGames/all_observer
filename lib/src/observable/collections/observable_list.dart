@@ -22,8 +22,8 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
   ///
   /// Cria uma [ObservableList] envolvendo uma cópia de [initial].
   ObservableList([List<E>? initial, String? name])
-      : _list = List<E>.of(initial ?? <E>[]),
-        _name = name;
+    : _list = List<E>.of(initial ?? <E>[]),
+      _name = name;
 
   final List<E> _list;
   final String? _name;
@@ -39,6 +39,9 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
 
   @override
   set length(int newLength) {
+    if (isMutationBlocked) {
+      return;
+    }
     _list.length = newLength;
     notifyChanged();
   }
@@ -51,24 +54,36 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
 
   @override
   void operator []=(int index, E value) {
+    if (isMutationBlocked) {
+      return;
+    }
     _list[index] = value;
     notifyChanged();
   }
 
   @override
   void add(E element) {
+    if (isMutationBlocked) {
+      return;
+    }
     _list.add(element);
     notifyChanged();
   }
 
   @override
   void addAll(Iterable<E> iterable) {
+    if (isMutationBlocked) {
+      return;
+    }
     _list.addAll(iterable);
     notifyChanged();
   }
 
   @override
   bool remove(Object? element) {
+    if (isMutationBlocked) {
+      return false;
+    }
     final bool removed = _list.remove(element);
     if (removed) {
       notifyChanged();
@@ -78,6 +93,17 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
 
   @override
   E removeAt(int index) {
+    // Blocked: return what *would* have been removed without actually
+    // mutating the list, so the closed collection's data stays untouched
+    // while the return type's contract (a non-nullable E) is still met.
+    //
+    // Bloqueado: retorna o que *teria sido* removido sem de fato mutar a
+    // lista, para que os dados da coleção fechada permaneçam intocados
+    // enquanto o contrato do tipo de retorno (um E não anulável) ainda é
+    // respeitado.
+    if (isMutationBlocked) {
+      return _list[index];
+    }
     final E removed = _list.removeAt(index);
     notifyChanged();
     return removed;
@@ -85,7 +111,7 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
 
   @override
   void clear() {
-    if (_list.isEmpty) {
+    if (_list.isEmpty || isMutationBlocked) {
       return;
     }
     _list.clear();
@@ -94,6 +120,9 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
 
   @override
   void sort([int Function(E a, E b)? compare]) {
+    if (isMutationBlocked) {
+      return;
+    }
     _list.sort(compare);
     notifyChanged();
   }
@@ -104,6 +133,9 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
   /// tamanho.
   @override
   void shuffle([Random? random]) {
+    if (isMutationBlocked) {
+      return;
+    }
     _list.shuffle(random);
     notifyChanged();
   }
@@ -120,6 +152,9 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
   /// elemento.
   @override
   void removeWhere(bool Function(E element) test) {
+    if (isMutationBlocked) {
+      return;
+    }
     final int before = _list.length;
     _list.removeWhere(test);
     if (_list.length != before) {
@@ -133,6 +168,9 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
   /// máximo uma vez.
   @override
   void retainWhere(bool Function(E element) test) {
+    if (isMutationBlocked) {
+      return;
+    }
     final int before = _list.length;
     _list.retainWhere(test);
     if (_list.length != before) {
@@ -147,12 +185,18 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
   /// vez independente de quantos elementos foram inseridos.
   @override
   void insertAll(int index, Iterable<E> iterable) {
+    if (isMutationBlocked) {
+      return;
+    }
     _list.insertAll(index, iterable);
     notifyChanged();
   }
 
   @override
   void insert(int index, E element) {
+    if (isMutationBlocked) {
+      return;
+    }
     _list.insert(index, element);
     notifyChanged();
   }

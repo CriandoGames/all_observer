@@ -52,6 +52,22 @@ void main() {
       final subscription = items.listen(() {});
       expect(subscription.isActive, isFalse);
     });
+
+    test('close is idempotent: calling it twice does not throw', () {
+      final ObservableList<int> items = ObservableList<int>();
+      items.listen(() {});
+      items.close();
+      expect(items.close, returnsNormally);
+      expect(items.isClosed, isTrue);
+    });
+
+    test('a mutation attempted after close is a silent no-op: the '
+        'underlying data is unchanged and no exception is thrown', () {
+      final ObservableList<int> items = ObservableList<int>(<int>[1, 2]);
+      items.close();
+      expect(() => items.add(3), returnsNormally);
+      expect(items, <int>[1, 2]);
+    });
   });
 
   group('ObservableList bulk operations notify exactly once', () {
@@ -65,9 +81,14 @@ void main() {
     });
 
     test('removeWhere notifies exactly once when elements are removed', () {
-      final ObservableList<int> items = ObservableList<int>(
-        <int>[1, 2, 3, 4, 5, 6],
-      );
+      final ObservableList<int> items = ObservableList<int>(<int>[
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+      ]);
       int calls = 0;
       items.listen(() => calls++);
       items.removeWhere((int e) => e.isEven);
@@ -84,9 +105,7 @@ void main() {
     });
 
     test('retainWhere notifies exactly once', () {
-      final ObservableList<int> items = ObservableList<int>(
-        <int>[1, 2, 3, 4],
-      );
+      final ObservableList<int> items = ObservableList<int>(<int>[1, 2, 3, 4]);
       int calls = 0;
       items.listen(() => calls++);
       items.retainWhere((int e) => e.isEven);

@@ -14,8 +14,8 @@ class ObservableMap<K, V> extends MapBase<K, V> with CollectionSupport {
   ///
   /// Cria um [ObservableMap] envolvendo uma cópia de [initial].
   ObservableMap([Map<K, V>? initial, String? name])
-      : _map = Map<K, V>.of(initial ?? <K, V>{}),
-        _name = name;
+    : _map = Map<K, V>.of(initial ?? <K, V>{}),
+      _name = name;
 
   final Map<K, V> _map;
   final String? _name;
@@ -34,12 +34,25 @@ class ObservableMap<K, V> extends MapBase<K, V> with CollectionSupport {
     if (_map.containsKey(key) && _map[key] == value) {
       return;
     }
+    if (isMutationBlocked) {
+      return;
+    }
     _map[key] = value;
     notifyChanged();
   }
 
   @override
   V? remove(Object? key) {
+    // Blocked: return the current value (as `Map.remove` normally would)
+    // without actually removing the entry, so a closed map's data stays
+    // untouched.
+    //
+    // Bloqueado: retorna o valor atual (como `Map.remove` normalmente
+    // faria) sem de fato remover a entrada, para que os dados de um mapa
+    // fechado permaneçam intocados.
+    if (isMutationBlocked) {
+      return _map[key];
+    }
     final bool hadKey = _map.containsKey(key);
     final V? removed = _map.remove(key);
     if (hadKey) {
@@ -50,7 +63,7 @@ class ObservableMap<K, V> extends MapBase<K, V> with CollectionSupport {
 
   @override
   void clear() {
-    if (_map.isEmpty) {
+    if (_map.isEmpty || isMutationBlocked) {
       return;
     }
     _map.clear();
@@ -59,7 +72,7 @@ class ObservableMap<K, V> extends MapBase<K, V> with CollectionSupport {
 
   @override
   void addAll(Map<K, V> other) {
-    if (other.isEmpty) {
+    if (other.isEmpty || isMutationBlocked) {
       return;
     }
     _map.addAll(other);
@@ -77,6 +90,9 @@ class ObservableMap<K, V> extends MapBase<K, V> with CollectionSupport {
   /// entrada por vez e, de outra forma, notificaria por entrada.
   @override
   void removeWhere(bool Function(K key, V value) test) {
+    if (isMutationBlocked) {
+      return;
+    }
     final int before = _map.length;
     _map.removeWhere(test);
     if (_map.length != before) {
