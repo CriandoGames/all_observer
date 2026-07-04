@@ -76,9 +76,21 @@ class ObservableFuture<T> extends Observable<AsyncState<T>> {
 
   int _generation = 0;
 
+  T? _previousDataFromCurrent() {
+    final AsyncState<T> current = value;
+    return switch (current) {
+      AsyncData<T>(:final T value) => value,
+      AsyncLoading<T>(:final T? previousData) => previousData,
+      AsyncError<T>() => null,
+    };
+  }
+
   /// Runs [futureFactory] and updates [value] through the loading → data/
   /// error lifecycle. Any previous [AsyncData] value is preserved as
-  /// [AsyncLoading.previousData] while this run is in flight.
+  /// [AsyncLoading.previousData] while this run is in flight. If [run] is
+  /// called again before a previous run completes, the stale data carried
+  /// in the intermediate [AsyncLoading] state is also propagated, so the
+  /// `previousData` is never silently lost across multiple rapid refreshes.
   ///
   /// Safe to call while a previous run is still in flight: the previous
   /// run's eventual result (success or error) is discarded when it arrives,
@@ -89,7 +101,11 @@ class ObservableFuture<T> extends Observable<AsyncState<T>> {
   /// Executa [futureFactory] e atualiza [value] pelo ciclo de vida
   /// carregando → dados/erro. Qualquer [AsyncData] anterior é preservado
   /// como [AsyncLoading.previousData] enquanto esta execução está em
-  /// andamento.
+  /// andamento. Se [run] for chamado novamente antes de uma execução
+  /// anterior terminar, o dado desatualizado carregado no estado
+  /// [AsyncLoading] intermediário também é propagado, para que o
+  /// `previousData` nunca seja silenciosamente perdido em múltiplos
+  /// refreshes rápidos.
   ///
   /// Seguro chamar enquanto uma execução anterior ainda está em andamento:
   /// o resultado eventual dessa execução anterior (sucesso ou erro) é
@@ -98,7 +114,7 @@ class ObservableFuture<T> extends Observable<AsyncState<T>> {
   /// escrito, já que escritas em um [Observable] fechado já são um no-op.
   Future<void> run() async {
     final int generation = ++_generation;
-    value = AsyncLoading<T>(previousData: value.valueOrNull);
+    value = AsyncLoading<T>(previousData: _previousDataFromCurrent());
     try {
       final T result = await futureFactory();
       if (generation != _generation || isClosed) {

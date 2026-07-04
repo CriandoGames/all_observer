@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 <a href="https://pub.dev/packages/all_observer/score"><img src="https://img.shields.io/pub/points/all_observer?label=pub%20points" alt="pub points"></a>
- <img src="https://img.shields.io/badge/testes-18-brightgreen" alt="156 testes">
+ <img src="https://img.shields.io/badge/testes-163-brightgreen" alt="163 testes"> <!-- atualizar ao adicionar testes -->
 
 
 Estado reativo para Flutter, sem dependências. Valores `Observable` mais um

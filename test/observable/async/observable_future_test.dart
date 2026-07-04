@@ -194,4 +194,138 @@ void main() {
       expect(events, <String>['future']);
     });
   });
+
+  group('ObservableFuture.run() previousData chain (T1.2)', () {
+    test(
+      'run() called again before first completes preserves previousData '
+      'from the last AsyncData',
+      () async {
+        final Completer<int> first = Completer<int>();
+        final Completer<int> second = Completer<int>();
+        int calls = 0;
+
+        final ObservableFuture<int> future = ObservableFuture<int>(() {
+          calls++;
+          return calls == 1 ? first.future : second.future;
+        }, autoStart: false);
+
+        // Resolve once to get into AsyncData(42).
+        first.complete(42);
+        await future.run();
+        expect(future.value, const AsyncData<int>(42));
+
+        // First refresh (call 2) → AsyncLoading(previousData: 42).
+        final Future<void> secondRun = future.run();
+
+        // At this point state is AsyncLoading with previousData from AsyncData.
+        expect(future.value, isA<AsyncLoading<int>>());
+        expect((future.value as AsyncLoading<int>).previousData, 42);
+
+        // Second refresh (call 3) while call 2 is still in flight.
+        final Completer<int> third = Completer<int>();
+        // Replace factory behavior via an indirection trick: just call run()
+        // again — the factory call count drives which completer is used.
+        final Future<void> thirdRun = future.run();
+
+        // State is still AsyncLoading — previousData must still be 42,
+        // NOT null (the bug: previously .valueOrNull returned null here).
+        expect(future.value, isA<AsyncLoading<int>>());
+        expect(
+          (future.value as AsyncLoading<int>).previousData,
+          42,
+          reason: 'previousData must survive a second run() call while still '
+              'in AsyncLoading state',
+        );
+
+        // Resolve the second and third completers.
+        second.complete(99);
+        third.complete(100);
+
+        await secondRun;
+        await thirdRun;
+      },
+    );
+
+    test(
+      'chain of 3 run() calls — previousData stays 42 throughout',
+      () async {
+        int calls = 0;
+        final List<Completer<int>> completers = <Completer<int>>[
+          Completer<int>(),
+          Completer<int>(),
+          Completer<int>(),
+          Completer<int>(), // 4th for autoStart
+        ];
+
+        final ObservableFuture<int> future = ObservableFuture<int>(() {
+          final int i = calls++;
+          return completers[i].future;
+        });
+
+        // AutoStart → call 0; resolve it to get AsyncData(42).
+        completers[0].complete(42);
+        await Future<void>.delayed(Duration.zero);
+        expect(future.value, const AsyncData<int>(42));
+
+        // 3 rapid run() calls while previous ones are still in flight.
+        final Future<void> r1 = future.run(); // call 1
+        final Future<void> r2 = future.run(); // call 2
+        final Future<void> r3 = future.run(); // call 3
+
+        // Each intermediate state must carry previousData = 42.
+        for (int i = 0; i < 3; i++) {
+          expect(future.value, isA<AsyncLoading<int>>());
+          expect(
+            (future.value as AsyncLoading<int>).previousData,
+            42,
+            reason: 'previousData must be 42 after $i intermediate run() '
+                'calls',
+          );
+        }
+
+        // Resolve stale completers (discarded), then the winning one.
+        completers[1].complete(1);
+        completers[2].complete(2);
+        completers[3].complete(99);
+        await r1;
+        await r2;
+        await r3;
+
+        expect(future.value, const AsyncData<int>(99));
+      },
+    );
+
+    test(
+      'run() after an AsyncError → previousData is null (documented choice)',
+      () async {
+        final ObservableFuture<int> future = ObservableFuture<int>(
+          () async => throw StateError('boom'),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(future.value, isA<AsyncError<int>>());
+
+        // Now run() again — current state is AsyncError, no previousData.
+        final Completer<int> completer = Completer<int>();
+        int calls = 0;
+        final ObservableFuture<int> future2 = ObservableFuture<int>(() {
+          calls++;
+          if (calls == 1) return Future<int>.error(StateError('boom'));
+          return completer.future;
+        });
+        await Future<void>.delayed(Duration.zero);
+        expect(future2.value, isA<AsyncError<int>>());
+
+        future2.run(); // second run from error state
+        expect(future2.value, isA<AsyncLoading<int>>());
+        expect(
+          (future2.value as AsyncLoading<int>).previousData,
+          isNull,
+          reason: 'AsyncError state carries no previousData by design',
+        );
+        completer.complete(7);
+        await Future<void>.delayed(Duration.zero);
+        expect(future2.value, const AsyncData<int>(7));
+      },
+    );
+  });
 }
