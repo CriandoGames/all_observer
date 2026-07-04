@@ -170,13 +170,41 @@ class Observable<T> implements ValueListenable<T> {
 
   /// Shorthand for assigning [newValue], mirroring `observable(newValue)`.
   ///
+  /// Note: because [call] treats a `null` argument as "no argument" (to
+  /// support the no-arg `observable()` read form), it cannot be used to
+  /// assign `null` itself to an `Observable<T?>` — `observable(null)` reads
+  /// the current value instead of assigning `null`. Use [setValue] or
+  /// `value = null` for that case.
+  ///
   /// Atalho para atribuir [newValue], equivalente a
   /// `observable(newValue)`.
+  ///
+  /// Nota: como [call] trata um argumento `null` como "nenhum argumento"
+  /// (para suportar a forma de leitura sem argumento `observable()`), ele
+  /// não pode ser usado para atribuir `null` a um `Observable<T?>` —
+  /// `observable(null)` lê o valor atual em vez de atribuir `null`. Use
+  /// [setValue] ou `value = null` nesse caso.
   T call([T? newValue]) {
     if (newValue != null) {
       value = newValue;
     }
     return _value;
+  }
+
+  /// Assigns [newValue], equivalent to `value = newValue`. Provided as a
+  /// regular method (rather than only the `value =` setter) for call sites
+  /// that need a tear-off (e.g. passing it directly as an `onChanged`
+  /// callback), and to unambiguously assign `null` to an `Observable<T?>`
+  /// — unlike [call], which treats a `null` argument as "no argument".
+  ///
+  /// Atribui [newValue], equivalente a `value = newValue`. Fornecido como
+  /// um método comum (em vez de apenas o setter `value =`) para pontos de
+  /// uso que precisam de um tear-off (ex.: passar diretamente como um
+  /// callback `onChanged`), e para atribuir `null` a um `Observable<T?>`
+  /// sem ambiguidade — diferente de [call], que trata um argumento `null`
+  /// como "nenhum argumento".
+  void setValue(T newValue) {
+    value = newValue;
   }
 
   /// Forces listener notification without changing [value]. Use this after

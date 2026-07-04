@@ -41,12 +41,70 @@ class Observer extends StatefulWidget {
   ///
   /// Cria um [Observer] que executa [builder] em cada reconstrução. Um
   /// [name] opcional é usado nos logs e warnings de debug.
-  const Observer(this.builder, {super.key, this.name});
+  const Observer(this.builder, {super.key, this.name})
+    : _staticChild = null,
+      _childBuilder = null;
+
+  /// Creates an [Observer] that rebuilds only the part of the subtree
+  /// [builder] itself constructs, reusing the same, already-built [child]
+  /// widget on every rebuild instead of reconstructing it — a static child
+  /// subtree, a common technique for avoiding rebuilds of expensive widgets
+  /// that don't depend on any observable. [child] is passed back to
+  /// [builder] on every rebuild so it can be placed anywhere in the
+  /// returned subtree (e.g. wrapped by a `Row`/`Padding`/`Center` that does
+  /// change).
+  ///
+  /// Cria um [Observer] que reconstrói apenas a parte da subárvore que o
+  /// próprio [builder] constrói, reaproveitando o mesmo widget [child] já
+  /// construído a cada rebuild em vez de reconstruí-lo — uma subárvore
+  /// estática, uma técnica comum para evitar reconstruções de widgets caros
+  /// que não dependem de nenhum observável. [child] é repassado para
+  /// [builder] a cada rebuild, para que possa ser posicionado em qualquer
+  /// lugar da subárvore retornada (ex.: envolvido por um `Row`/`Padding`/
+  /// `Center` que muda).
+  ///
+  /// Example / Exemplo:
+  /// ```dart
+  /// Observer.withChild(
+  ///   builder: (context, child) => Row(
+  ///     children: [Text('${count.value}'), child],
+  ///   ),
+  ///   child: const ExpensiveStaticWidget(),
+  /// );
+  /// ```
+  const Observer.withChild({
+    required Widget Function(BuildContext context, Widget child) builder,
+    required Widget child,
+    super.key,
+    this.name,
+  }) : _staticChild = child,
+       builder = _unusedBuilder,
+       _childBuilder = builder;
+
+  static Widget _unusedBuilder() => const SizedBox.shrink();
 
   /// Builds the widget subtree, reading whichever observables are needed.
+  /// Unused (and never called) when this [Observer] was created via
+  /// [Observer.withChild] — [_childBuilder] is used instead.
   ///
-  /// Constrói a subárvore de widgets, lendo os observáveis necessários.
+  /// Constrói a subárvore de widgets, lendo os observáveis necessários. Não
+  /// usado (e nunca chamado) quando este [Observer] foi criado via
+  /// [Observer.withChild] — [_childBuilder] é usado no lugar.
   final Widget Function() builder;
+
+  /// Set only by [Observer.withChild]: builds the subtree given the static
+  /// [_staticChild], instead of taking no arguments.
+  ///
+  /// Definido apenas por [Observer.withChild]: constrói a subárvore
+  /// recebendo o [_staticChild] estático, em vez de não receber argumentos.
+  final Widget Function(BuildContext context, Widget child)? _childBuilder;
+
+  /// The static child passed to [_childBuilder] on every rebuild, set only
+  /// by [Observer.withChild].
+  ///
+  /// O filho estático repassado para [_childBuilder] a cada rebuild,
+  /// definido apenas por [Observer.withChild].
+  final Widget? _staticChild;
 
   /// Optional debug label shown in logs and warnings.
   ///
@@ -98,9 +156,12 @@ class _ObserverState extends State<Observer> {
       _onDependencyChanged,
     );
     try {
+      final Widget Function() runBuilder = widget._childBuilder != null
+          ? () => widget._childBuilder!(context, widget._staticChild!)
+          : widget.builder;
       final Widget result = DependencyTracker.track(
         trackingContext,
-        widget.builder,
+        runBuilder,
       );
       _checkTracking(trackingContext);
       return result;
@@ -122,7 +183,8 @@ class _ObserverState extends State<Observer> {
 
   void _checkTracking(TrackingContext trackingContext) {
     if (trackingContext.readCount == 0) {
-      final String message = '$_label não leu nenhum Observable no '
+      final String message =
+          '$_label não leu nenhum Observable no '
           'builder. Ele nunca vai reconstruir.';
       if (ObserverConfig.strictMode) {
         throw ObserverError(message);

@@ -1,10 +1,8 @@
 name: all_observer
 description: >-
   Lightweight reactive state management for Flutter with zero external
-  dependencies. Observable values and an auto-tracking Observer widget,
-  built for safety (no rebuilds on defunct elements) and full ValueListenable
-  interoperability.
-version: 1.0.0
+  dependencies: observable values plus an auto-tracking Observer widget.
+version: 1.1.0
 homepage: https://github.com/CriandoGames/all_observer
 repository: https://github.com/CriandoGames/all_observer
 issue_tracker: https://github.com/CriandoGames/all_observer/issues

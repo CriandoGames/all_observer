@@ -1,3 +1,35 @@
+## 1.1.0
+
+Additive release — no breaking changes, no new external dependencies.
+
+Async:
+
+- `ObservableFuture<T>`: an `Observable<AsyncState<T>>` that runs a `Future<T> Function()` and tracks its loading/data/error lifecycle. Auto-runs by default (`autoStart: true`) or via `run()`/`refresh()`. Race-safe: a generation counter discards a stale `run()`'s result if a newer `run()` started before it resolved, and discards any result that arrives after `close()`.
+- `AsyncState<T>` sealed class: `AsyncLoading<T>` (with `previousData` for stale-while-loading UIs), `AsyncData<T>`, `AsyncError<T>`; `when`/`maybeWhen`, `isLoading`/`hasData`/`hasError`/`valueOrNull`, content-based `==`/`hashCode`.
+
+Computed:
+
+- `equals` named parameter on `Computed`'s constructor, mirroring `Observable`'s, for custom change-detection (e.g. floating-point tolerance) on the recomputed value.
+- Diamond-glitch mitigation: inside an active `Observable.batch()`, a `Computed`'s recompute is deferred (to the next `value` read, or to end-of-batch, whichever comes first) instead of running eagerly per upstream notification — so a diamond-shaped dependency graph recomputes at most once per batch, with every dependency already at its final value. Outside `batch`, the previous eager-recompute-per-notification behavior is unchanged and documented as a known limitation.
+
+Widgets:
+
+- `Observer.withChild` named constructor: rebuilds only the part of the subtree the builder itself constructs, reusing a static `child` widget across rebuilds instead of reconstructing it — for expensive widgets that don't depend on any observable.
+
+Observable:
+
+- `Observable.setValue(T newValue)`: equivalent to `value = newValue`, usable as a tear-off (e.g. directly as an `onChanged` callback) and the unambiguous way to assign `null` to an `Observable<T?>` (unlike `call(null)`, which reads instead of assigns).
+- `Observable<T>.select<R>(R Function(T value) selector, {String? name})` extension: sugar over `Computed(() => selector(value), name: name)` for a narrower, memoized derived value. Caller owns and must `close()` the returned `Computed`.
+
+Performance:
+
+- `ListenerRegistry` now backed by a `LinkedHashSet<VoidCallback>` instead of a `List`, making `add`/`remove`/`contains` O(1) instead of O(n), while preserving insertion order and native deduplication. See `benchmark/listener_registry_benchmark.dart`.
+
+Other:
+
+- `example/` reworked into a multi-page app (bottom navigation) with five focused demos: counter + `Computed`, debounced search, `ObservableFuture` async states, `Observable.batch` form saving, and `Observer`/`ValueListenableBuilder` interop — each in its own file under `example/lib/demos/`.
+- README (EN/PT-BR): new "Migrating from other reactive state solutions" section (concept-based equivalence table) and a "Known limitations" section (diamond glitch outside `batch`, `Computed` staying active after first read until `close()`, single-isolate confinement).
+
 ## 1.0.0
 
 Initial release.

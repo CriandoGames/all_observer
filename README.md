@@ -4,7 +4,8 @@
 
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/CriandoGames/all_observer/ci.yml?branch=main)](https://github.com/CriandoGames/all_observer/actions)
+<a href="https://pub.dev/packages/all_observer/score"><img src="https://img.shields.io/pub/points/all_observer?label=pub%20points" alt="pub points"></a>
+ <img src="https://img.shields.io/badge/testes-18-brightgreen" alt="150 testes">
 
 Reactive state for Flutter, zero dependencies. `Observable` values plus an
 auto-tracking `Observer` widget — a small, safe, dependency-free core for
@@ -104,9 +105,32 @@ and only notifies its own listeners when the recomputed value actually
 differs from the previous one. Call `close()` to unsubscribe from all
 current dependencies.
 
-`Observable.select`-style derivation (e.g. `user.select((u) => u.name)`)
-is intentionally not a separate API: write it directly as
-`Computed(() => user.value.name)`.
+For a narrower derived value from a single `Observable`, `select` is sugar
+over the same pattern: `user.select((u) => u.name)` is exactly
+`Computed(() => user.value.name)`. The caller owns and must `close()` the
+returned `Computed`.
+
+### Custom `equals` on `Computed`
+
+```dart
+final fahrenheit = Computed<double>(
+  () => celsius.value * 9 / 5 + 32,
+  equals: (a, b) => (a - b).abs() < 0.01,
+);
+```
+
+Like `Observable`, `Computed` accepts an `equals` override to decide
+whether a recomputed value actually changed and should notify — useful for
+floating-point tolerances or partial-field comparisons.
+
+### Diamond dependency graphs and `batch`
+
+A "diamond" is two `Computed`s both derived from the same source, with a
+third depending on both. Wrap the writes that feed such a graph in
+`Observable.batch()`: the recompute of any `Computed` in the graph is
+deferred until every write in the batch has settled, so it recomputes at
+most once, always from fully consistent upstream values. See "Known
+limitations" below for what happens without `batch`.
 
 ## Coalescing writes with `Observable.batch`
 
@@ -159,6 +183,59 @@ notifies **at most once per call**, never once per element. A no-op
 mutation (adding a `Set` element that's already there, `removeWhere` that
 matches nothing, assigning an identical value to an existing map key)
 notifies zero times.
+
+## Async values with `ObservableFuture`
+
+```dart
+final userFuture = ObservableFuture<User>(() => api.fetchUser(id));
+
+Observer(() => userFuture.value.when(
+  loading: (previousData) => const CircularProgressIndicator(),
+  data: (user) => Text(user.name),
+  error: (error, stackTrace) => Text('Error: $error'),
+));
+
+userFuture.refresh(); // re-runs the future, e.g. for pull-to-refresh
+```
+
+`ObservableFuture<T>` is an `Observable<AsyncState<T>>` that runs a
+`Future<T> Function()` and tracks its loading/data/error lifecycle
+automatically (`autoStart: true` by default; pass `false` and call `run()`
+manually otherwise). `AsyncLoading.previousData` carries the last known
+value while a `refresh()` is in flight, for stale-while-loading UIs. Every
+`run()`/`refresh()` call is race-safe: if a newer call starts before an
+older one resolves, the older result (success or error) is discarded when
+it eventually arrives, and any in-flight result is also discarded if
+`close()` was called meanwhile.
+
+## Fine-grained rebuilds with `Observer.withChild`
+
+```dart
+Observer.withChild(
+  builder: (context, child) => Row(
+    children: [Text('${count.value}'), child],
+  ),
+  child: const ExpensiveStaticWidget(),
+);
+```
+
+A static child subtree, a common technique for avoiding rebuilds of
+expensive widgets that don't depend on any observable: `child` is built
+once and passed back into `builder` on every rebuild instead of being
+reconstructed.
+
+## `setValue`, an unambiguous way to assign `null`
+
+```dart
+final name = Observable<String?>('Carlos');
+name.setValue(null); // assigns null and notifies
+```
+
+`call()` treats a `null` argument as "no argument" (to support the
+no-argument `observable()` read form), so `observable(null)` reads instead
+of assigning. `setValue(newValue)` is equivalent to `value = newValue` and
+assigns `null` unambiguously; it is also handy as a tear-off (e.g. directly
+as an `onChanged` callback).
 
 ## Local, self-contained state with `ObserverValue`
 
@@ -261,12 +338,66 @@ failures in CI.
 ## More
 
 - `ObservableList`, `ObservableMap`, `ObservableSet`: reactive collections; reading any member tracks it, mutating any member notifies exactly once per call (bulk operations like `addAll`/`removeWhere`/`retainWhere` never notify per element).
-- `Computed<T>`: lazy, memoized derived values built on the same dependency tracker as `Observer`.
+- `Computed<T>`: lazy, memoized derived values built on the same dependency tracker as `Observer`, with an optional custom `equals` and batch-aware diamond-glitch mitigation.
+- `ObservableFuture<T>` / `AsyncState<T>`: race-safe async loading/data/error state built on `Observable`.
 - `Observable.batch`: coalesces multiple writes into one notification per changed observable, for manual subscribers.
+- `Observer.withChild`: rebuilds only the builder-owned part of a subtree, reusing a static `child` across rebuilds.
+- `Observable.select`: sugar for a narrower `Computed` derived from one `Observable`.
 - `ObserverValue<T>`: local, self-contained reactive state without managing an observable's lifecycle separately.
 - `ever`, `once`, `debounce`, `interval`: workers for side effects driven by observable changes.
 - A synchronous update cycle (A's listener writes B, B's listener writes A, ...) is stopped after a bounded notification depth with a descriptive error, instead of a raw stack overflow; an exception thrown inside one listener never stops the other listeners of the same observable from running.
 - See `/example` for a runnable demo (counter, reactive list, worker, debug-log toggle), and `/benchmark` for manual Stopwatch-based microbenchmarks.
+
+## Migrating from other reactive state solutions
+
+`all_observer` covers the same core concepts most reactive state
+approaches do, under its own names. This is a concept-by-concept map, not
+a name-for-name port of any specific library:
+
+| Concept | `all_observer` |
+|---|---|
+| Rx-style reactive value | `Observable<T>` (`.obs` to create one) |
+| Reactive builder widget, auto-tracking dependencies | `Observer` |
+| Derived/computed reactive value | `Computed<T>` |
+| Side-effect helpers on value change (`ever`/`once`/`debounce`/`interval`) | Same names: `ever`, `once`, `debounce`, `interval` |
+| Async loading/data/error state | `ObservableFuture<T>` / `AsyncState<T>` |
+| Coalesced/transactional writes | `Observable.batch(() { ... })` |
+| Dispose / teardown | `close()` on every `Observable`/`Computed`/collection |
+
+What has **no** equivalent here, by design — `all_observer` only handles
+*reactivity*, not app architecture:
+
+- **Routing / navigation**: use Flutter's own `Navigator`/`Router`, or a
+  dedicated routing package.
+- **Snackbars / dialogs / overlays**: use Flutter's own `ScaffoldMessenger`,
+  `showDialog`, `showModalBottomSheet`, etc. directly — `all_observer` has
+  no UI-side-effect layer to hook into these.
+- **Dependency injection / service location**: bring your own DI solution
+  (a simple constructor-passed singleton, an `InheritedWidget`, or a
+  dedicated DI package) and store `Observable`s inside the services/
+  controllers it manages — `all_observer` has no opinion on where state
+  *lives*, only on how it *notifies*.
+
+## Known limitations
+
+- **Diamond glitch outside `batch`.** A "diamond" dependency graph (two
+  `Computed`s derived from the same source, a third depending on both) can
+  recompute more than once, and briefly observe a mix of one already
+  -updated branch with one still-stale one, when the upstream writes
+  happen outside `Observable.batch()`. Wrap such writes in `batch()` to
+  get exactly one recompute per affected `Computed`, always from
+  consistent upstream values.
+- **`Computed` stays subscribed after its first read, until `close()`.**
+  Reading `.value` (or attaching a listener) makes a `Computed` subscribe
+  to its current dependencies indefinitely — it does not unsubscribe
+  itself just because nobody is listening anymore. Call `close()` once
+  you're done with a `Computed` you created manually (short-lived ones,
+  e.g. from `select`, are easy to forget).
+- **Single-isolate confinement.** Like the rest of Dart, every
+  `Observable`/`Computed`/collection is confined to the isolate that
+  created it; there is no cross-isolate synchronization. Use
+  `SendPort`/`ReceivePort` or `compute` to move data between isolates and
+  write back to the observable on its own isolate.
 
 ## Other packages by us
 

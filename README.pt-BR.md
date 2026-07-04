@@ -4,7 +4,9 @@
 
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/CriandoGames/all_observer/ci.yml?branch=main)](https://github.com/CriandoGames/all_observer/actions)
+<a href="https://pub.dev/packages/all_observer/score"><img src="https://img.shields.io/pub/points/all_observer?label=pub%20points" alt="pub points"></a>
+ <img src="https://img.shields.io/badge/testes-18-brightgreen" alt="150 testes">
+
 
 Estado reativo para Flutter, sem dependências. Valores `Observable` mais um
 widget `Observer` com auto-rastreamento — um núcleo pequeno, seguro e sem
@@ -107,9 +109,33 @@ próprios listeners quando o valor recalculado realmente difere do
 anterior. Chame `close()` para cancelar a inscrição em todas as
 dependências atuais.
 
-Um `Observable.select` no estilo `user.select((u) => u.name)` foi
-propositalmente deixado de fora como API separada: escreva diretamente
-`Computed(() => user.value.name)`.
+Para um valor derivado mais estreito a partir de um único `Observable`,
+`select` é açúcar sintático sobre o mesmo padrão: `user.select((u) =>
+u.name)` é exatamente `Computed(() => user.value.name)`. Quem chama é dono
+do `Computed` retornado e deve chamar `close()` nele.
+
+### `equals` customizado no `Computed`
+
+```dart
+final fahrenheit = Computed<double>(
+  () => celsius.value * 9 / 5 + 32,
+  equals: (a, b) => (a - b).abs() < 0.01,
+);
+```
+
+Assim como `Observable`, `Computed` aceita um `equals` customizado para
+decidir se um valor recalculado realmente mudou e deve notificar — útil
+para tolerâncias de ponto flutuante ou comparações parciais de campos.
+
+### Grafos de dependência em diamante e `batch`
+
+Um "diamante" é quando dois `Computed` derivam da mesma origem, e um
+terceiro depende de ambos. Envolva as escritas que alimentam esse grafo em
+`Observable.batch()`: o recompute de qualquer `Computed` do grafo é adiado
+até que toda escrita do batch tenha se estabilizado, então ele recalcula
+no máximo uma vez, sempre a partir de valores a montante totalmente
+consistentes. Veja "Limitações conhecidas" abaixo para o que acontece sem
+`batch`.
 
 ## Agrupando escritas com `Observable.batch`
 
@@ -163,6 +189,60 @@ notifica **no máximo uma vez por chamada**, nunca uma vez por elemento.
 Uma mutação sem efeito (adicionar um elemento de `Set` que já existe,
 `removeWhere` que não combina com nada, atribuir um valor idêntico a uma
 chave já existente do map) notifica zero vezes.
+
+## Valores assíncronos com `ObservableFuture`
+
+```dart
+final userFuture = ObservableFuture<User>(() => api.fetchUser(id));
+
+Observer(() => userFuture.value.when(
+  loading: (previousData) => const CircularProgressIndicator(),
+  data: (user) => Text(user.name),
+  error: (error, stackTrace) => Text('Erro: $error'),
+));
+
+userFuture.refresh(); // reexecuta a future, ex.: pull-to-refresh
+```
+
+`ObservableFuture<T>` é um `Observable<AsyncState<T>>` que executa uma
+`Future<T> Function()` e acompanha automaticamente seu ciclo de vida de
+carregando/dados/erro (`autoStart: true` por padrão; passe `false` e chame
+`run()` manualmente caso contrário). `AsyncLoading.previousData` carrega o
+último valor conhecido enquanto um `refresh()` está em andamento, para UIs
+do tipo stale-while-loading. Toda chamada a `run()`/`refresh()` é segura
+contra corrida: se uma chamada mais nova iniciar antes de uma mais antiga
+resolver, o resultado da mais antiga (sucesso ou erro) é descartado quando
+chegar, e qualquer resultado ainda em andamento também é descartado se
+`close()` tiver sido chamado nesse meio tempo.
+
+## Rebuilds mais granulares com `Observer.withChild`
+
+```dart
+Observer.withChild(
+  builder: (context, child) => Row(
+    children: [Text('${count.value}'), child],
+  ),
+  child: const WidgetEstaticoCaro(),
+);
+```
+
+Uma subárvore filha estática, uma técnica comum para evitar reconstruções
+de widgets caros que não dependem de nenhum observável: `child` é
+construído uma vez e repassado de volta para `builder` a cada rebuild, em
+vez de ser reconstruído.
+
+## `setValue`, uma forma inequívoca de atribuir `null`
+
+```dart
+final name = Observable<String?>('Carlos');
+name.setValue(null); // atribui null e notifica
+```
+
+`call()` trata um argumento `null` como "nenhum argumento" (para suportar
+a forma de leitura sem argumento `observable()`), então `observable(null)`
+lê em vez de atribuir. `setValue(newValue)` é equivalente a `value =
+newValue` e atribui `null` sem ambiguidade; também é útil como tear-off
+(ex.: diretamente como um callback `onChanged`).
 
 ## Estado local e autocontido com `ObserverValue`
 
@@ -268,12 +348,69 @@ com um modo estrito opcional para times que querem falhas duras em CI.
 ## Mais
 
 - `ObservableList`, `ObservableMap`, `ObservableSet`: coleções reativas; ler qualquer membro rastreia, mutar qualquer membro notifica exatamente uma vez por chamada (operações em lote como `addAll`/`removeWhere`/`retainWhere` nunca notificam por elemento).
-- `Computed<T>`: valores derivados preguiçosos e memoizados, construídos sobre o mesmo rastreador de dependências do `Observer`.
+- `Computed<T>`: valores derivados preguiçosos e memoizados, construídos sobre o mesmo rastreador de dependências do `Observer`, com `equals` customizável e mitigação do glitch do diamante ciente de batch.
+- `ObservableFuture<T>` / `AsyncState<T>`: estado assíncrono de carregando/dados/erro, seguro contra corrida, construído sobre `Observable`.
 - `Observable.batch`: agrupa múltiplas escritas em uma única notificação por observável alterado, para assinantes manuais.
+- `Observer.withChild`: reconstrói apenas a parte de uma subárvore que pertence ao builder, reaproveitando um `child` estático entre rebuilds.
+- `Observable.select`: açúcar sintático para um `Computed` mais estreito derivado de um único `Observable`.
 - `ObserverValue<T>`: estado reativo local e autocontido, sem gerenciar o ciclo de vida de um observável separadamente.
 - `ever`, `once`, `debounce`, `interval`: workers para efeitos colaterais disparados por mudanças em observáveis.
 - Um ciclo de atualização síncrono (o listener de A escreve em B, o de B escreve em A, ...) é interrompido após uma profundidade de notificação limitada, com um erro descritivo, em vez de um stack overflow bruto; uma exceção lançada dentro de um listener nunca impede que os demais listeners do mesmo observável rodem.
 - Veja `/example` para uma demonstração executável (contador, lista reativa, worker, alternador de logs de debug), e `/benchmark` para microbenchmarks manuais baseados em Stopwatch.
+
+## Migrando de outras soluções de estado reativo
+
+`all_observer` cobre os mesmos conceitos centrais que a maioria das
+abordagens de estado reativo cobre, sob nomes próprios. Este é um mapa
+conceito a conceito, não uma portabilidade nome a nome de nenhuma
+biblioteca específica:
+
+| Conceito | `all_observer` |
+|---|---|
+| Valor reativo estilo Rx | `Observable<T>` (`.obs` para criar um) |
+| Widget builder reativo com auto-rastreamento de dependências | `Observer` |
+| Valor reativo derivado/calculado | `Computed<T>` |
+| Helpers de efeito colateral em mudança de valor (`ever`/`once`/`debounce`/`interval`) | Mesmos nomes: `ever`, `once`, `debounce`, `interval` |
+| Estado assíncrono de carregando/dados/erro | `ObservableFuture<T>` / `AsyncState<T>` |
+| Escritas agrupadas/transacionais | `Observable.batch(() { ... })` |
+| Dispose / encerramento | `close()` em todo `Observable`/`Computed`/coleção |
+
+O que **não** tem equivalente aqui, por design — `all_observer` cuida
+apenas da *reatividade*, não da arquitetura do app:
+
+- **Roteamento / navegação**: use o próprio `Navigator`/`Router` do
+  Flutter, ou um pacote de roteamento dedicado.
+- **Snackbars / diálogos / overlays**: use o próprio `ScaffoldMessenger`,
+  `showDialog`, `showModalBottomSheet` etc. do Flutter diretamente —
+  `all_observer` não tem uma camada de efeito colateral de UI para
+  conectar a esses.
+- **Injeção de dependência / localização de serviços**: traga sua própria
+  solução de DI (um singleton simples passado por construtor, um
+  `InheritedWidget`, ou um pacote de DI dedicado) e guarde `Observable`s
+  dentro dos serviços/controllers que ela gerencia — `all_observer` não
+  tem opinião sobre onde o estado *mora*, só sobre como ele *notifica*.
+
+## Limitações conhecidas
+
+- **Glitch do diamante fora do `batch`.** Um grafo de dependências em
+  diamante (dois `Computed` derivados da mesma origem, um terceiro
+  dependendo de ambos) pode recalcular mais de uma vez, e brevemente
+  observar uma mistura de um ramo já atualizado com outro ainda
+  desatualizado, quando as escritas a montante acontecem fora de
+  `Observable.batch()`. Envolva essas escritas em `batch()` para obter
+  exatamente um recompute por `Computed` afetado, sempre a partir de
+  valores a montante consistentes.
+- **`Computed` permanece inscrito após a primeira leitura, até `close()`.**
+  Ler `.value` (ou anexar um listener) faz um `Computed` se inscrever
+  indefinidamente em suas dependências atuais — ele não se desinscreve
+  sozinho só porque ninguém mais está escutando. Chame `close()` quando
+  terminar com um `Computed` criado manualmente (os de vida curta, ex.: a
+  partir de `select`, são fáceis de esquecer).
+- **Confinamento a um único isolate.** Como o restante do Dart, todo
+  `Observable`/`Computed`/coleção é confinado ao isolate que o criou; não
+  há sincronização entre isolates. Use `SendPort`/`ReceivePort` ou
+  `compute` para mover dados entre isolates e escreva de volta no
+  observável no seu próprio isolate.
 
 ## Outras libs nossas
 

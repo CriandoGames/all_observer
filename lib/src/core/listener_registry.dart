@@ -1,3 +1,5 @@
+import 'dart:collection' show LinkedHashSet;
+
 import 'package:flutter/foundation.dart';
 
 import '../logging/observer_logger.dart';
@@ -26,7 +28,18 @@ int _notificationDepth = 0;
 /// forma segura, tolerando listeners que adicionam/removem outros listeners
 /// durante a notificação.
 class ListenerRegistry {
-  final List<VoidCallback> _listeners = <VoidCallback>[];
+  // A LinkedHashSet gives O(1) add/remove/contains (versus a List's O(n)
+  // linear scan for `contains`/`remove`), while still preserving insertion
+  // order for iteration/snapshotting, and natively deduplicating listeners
+  // (a `Set`'s core contract) instead of an explicit `contains` check
+  // before insertion.
+  //
+  // Um LinkedHashSet garante add/remove/contains em O(1) (em vez do scan
+  // linear O(n) de uma List para `contains`/`remove`), preservando a ordem
+  // de inserção para iteração/snapshot, e deduplicando listeners
+  // nativamente (contrato central de um `Set`) em vez de uma checagem
+  // explícita de `contains` antes de inserir.
+  final LinkedHashSet<VoidCallback> _listeners = LinkedHashSet<VoidCallback>();
 
   /// Number of listeners currently attached.
   ///
@@ -44,9 +57,7 @@ class ListenerRegistry {
   /// Adiciona [listener] se ele ainda não estiver presente e retorna um
   /// [Disposer] que o remove.
   Disposer add(VoidCallback listener) {
-    if (!_listeners.contains(listener)) {
-      _listeners.add(listener);
-    }
+    _listeners.add(listener);
     return () => remove(listener);
   }
 
@@ -119,7 +130,10 @@ class ListenerRegistry {
       );
       return;
     }
-    final List<VoidCallback> snapshot = List<VoidCallback>.of(_listeners);
+    final List<VoidCallback> snapshot = List<VoidCallback>.of(
+      _listeners,
+      growable: false,
+    );
     _notificationDepth++;
     try {
       for (final VoidCallback listener in snapshot) {

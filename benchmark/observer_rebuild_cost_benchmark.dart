@@ -43,8 +43,7 @@ void main() {
       }
       stopwatch.stop();
 
-      final double perRebuildMicros =
-          stopwatch.elapsedMicroseconds / kRebuilds;
+      final double perRebuildMicros = stopwatch.elapsedMicroseconds / kRebuilds;
       // ignore: avoid_print
       print(
         'depCount=$depCount: ${stopwatch.elapsedMicroseconds}us total for '
