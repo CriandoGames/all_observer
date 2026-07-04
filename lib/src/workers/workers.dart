@@ -114,6 +114,21 @@ Worker interval<T>(
   bool hasPending = false;
   Debouncer? cooldown;
 
+  // Note: the trailing flush below intentionally does not re-arm another
+  // cooldown. Doing so would leave a timer perpetually pending after every
+  // emission even once the observable stops changing, which is both a
+  // pointless resource (a live Timer with nothing left to do) and, in
+  // tests, a "Timer still pending after dispose" failure. Idling back to
+  // `waiting = false` is correct: a value arriving right after the flush
+  // simply starts a fresh cooldown window on its own.
+  //
+  // Nota: o flush final abaixo propositalmente não rearma outro cooldown.
+  // Fazer isso deixaria um timer pendente para sempre após cada emissão,
+  // mesmo que o observável pare de mudar — o que é um recurso inútil (um
+  // Timer vivo sem mais nada a fazer) e, em testes, uma falha de "Timer
+  // ainda pendente após o dispose". Voltar a `waiting = false` está
+  // correto: um valor que chegar logo após o flush simplesmente inicia sua
+  // própria janela de cooldown.
   void scheduleCooldown() {
     waiting = true;
     cooldown = Debouncer(time)
@@ -123,7 +138,6 @@ Worker interval<T>(
           hasPending = false;
           final T value = pendingValue as T;
           callback(value);
-          scheduleCooldown();
         }
       });
   }
