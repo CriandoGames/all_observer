@@ -123,11 +123,15 @@ void main() {
         a.notifyAll();
       });
 
-      expect(() => a.notifyAll(), returnsNormally);
+      final List<FlutterErrorDetails> reported = captureReportedErrors(
+        () => expect(() => a.notifyAll(), returnsNormally),
+      );
       // Depth guard caps recursion at kMaxNotificationDepth; both counters
       // stay bounded instead of growing until a StackOverflowError.
       expect(aRuns, lessThanOrEqualTo(kMaxNotificationDepth + 1));
       expect(bRuns, lessThanOrEqualTo(kMaxNotificationDepth + 1));
+      expect(reported, hasLength(1));
+      expect(reported.single.exception, isA<FlutterError>());
     });
   });
 }
