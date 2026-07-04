@@ -417,4 +417,131 @@ void main() {
       expect(risky.value, 40);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // T2.1 — Auto-batch (micro-batch) tests
+  // Every standalone write now goes through the two-phase flush, so glitch-free
+  // behavior is guaranteed even WITHOUT an explicit Observable.batch().
+  // ---------------------------------------------------------------------------
+  group('T2.1 auto-batch: glitch-free without explicit batch()', () {
+    test(
+      'diamond graph WITHOUT batch: derived Computed recomputes exactly once '
+      'and never observes mixed state',
+      () {
+        final Observable<int> source = Observable<int>(1);
+        final Computed<int> doubled = Computed<int>(() => source.value * 2);
+        final Computed<int> tripled = Computed<int>(() => source.value * 3);
+        final List<int> seenSums = <int>[];
+        final Computed<int> sum = Computed<int>(() {
+          final int value = doubled.value + tripled.value;
+          seenSums.add(value);
+          return value;
+        });
+
+        // Force all three live so listeners are attached.
+        expect(sum.value, 5); // 2 + 3
+        seenSums.clear();
+
+        int sumNotifications = 0;
+        sum.addListener(() => sumNotifications++);
+
+        // Single write, NO explicit batch.
+        source.value = 10;
+
+        // sum must always be 50 — never a mixed read like 20 + 3 or 2 + 30.
+        expect(sum.value, 50);
+        expect(
+          seenSums,
+          everyElement(50),
+          reason: 'sum must never observe mixed upstream values',
+        );
+        // Recomputes exactly once (the micro-batch guarantees this).
+        expect(seenSums, hasLength(1));
+        expect(sumNotifications, 1);
+      },
+    );
+
+    test(
+      '3-level cascade WITHOUT batch: all Computeds see consistent values',
+      () {
+        final Observable<int> source = Observable<int>(1);
+        final Computed<int> level1 = Computed<int>(() => source.value * 2);
+        final List<int> seenLevel2 = <int>[];
+        final Computed<int> level2 = Computed<int>(() {
+          final int v = level1.value + source.value;
+          seenLevel2.add(v);
+          return v;
+        });
+        final List<int> seenLevel3 = <int>[];
+        final Computed<int> level3 = Computed<int>(() {
+          final int v = level2.value + level1.value;
+          seenLevel3.add(v);
+          return v;
+        });
+
+        // Force all live. level1=1*2=2, level2=2+1=3, level3=3+2=5.
+        expect(level3.value, 5);
+        seenLevel2.clear();
+        seenLevel3.clear();
+
+        level3.addListener(() {});
+        source.value = 10;
+
+        // level1=20, level2=20+10=30, level3=30+20=50
+        expect(level3.value, 50);
+        // All intermediate values must be the final, consistent ones.
+        expect(seenLevel2, everyElement(30));
+        expect(seenLevel3, everyElement(50));
+      },
+    );
+
+    test('write inside ever callback during flush is coalesced in same wave '
+        'sequence — no notification lost', () {
+      final Observable<int> a = Observable<int>(0);
+      final Observable<int> b = Observable<int>(0);
+      final List<int> bValues = <int>[];
+
+      // a's listener writes to b exactly once (not a cycle).
+      a.listen((int v) {
+        if (b.value == 0) {
+          b.value = v * 10;
+        }
+      });
+      b.listen((int v) => bValues.add(v));
+
+      a.value = 5;
+
+      // b should have received 50 (5 * 10), notified exactly once.
+      expect(b.value, 50);
+      expect(bValues, <int>[50]);
+    });
+
+    test('explicit batch() still coalesces N writes into 1 notification', () {
+      final Observable<int> x = Observable<int>(0);
+      final Observable<int> y = Observable<int>(0);
+      int calls = 0;
+      x.listen((_) => calls++);
+      y.listen((_) => calls++);
+
+      Observable.batch(() {
+        x.value = 1;
+        x.value = 2;
+        y.value = 3;
+      });
+
+      // Despite 3 writes, only 2 listener calls: x notifies once, y once.
+      expect(calls, 2);
+      expect(x.value, 2);
+      expect(y.value, 3);
+    });
+
+    test('post-close write is a no-op (regression)', () {
+      final Observable<int> source = Observable<int>(1);
+      int calls = 0;
+      source.listen((_) => calls++);
+      source.close();
+      source.value = 99;
+      expect(calls, 0);
+    });
+  });
 }

@@ -1,4 +1,36 @@
+## 1.2.0
+
+Minor release — no breaking changes, no new external dependencies.
+
+Core:
+
+- **T2.1 — Auto-batch (glitch-free by default):** every write — even a
+  standalone `observable.value = x` outside any explicit `Observable.batch()`
+  — is now automatically routed through the same two-phase fixed-point flush
+  that explicit batches use. Diamond dependency graphs (`Computed` A and B
+  both derived from source S, `Computed` C depending on A and B) always
+  recompute exactly once, always seeing fully settled upstream values — no
+  glitch, no explicit `batch()` required. The implementation wraps each
+  standalone write in a micro-batch (`BatchScope.run(() => BatchScope.queue(this))`);
+  a fast-path skips the overhead entirely when there are no listeners. The
+  `kMaxFlushWaves = 100` guard from v1.1.1 (T1.1) is the safety net for any
+  in-batch cycle that could result from cascading writes.
+- **`Observable.batch()` repositioned as a performance optimization:**
+  wrapping multiple writes in `batch()` coalesces them into a single
+  notification round (all writes committed first, then each changed observable
+  notifies once), instead of opening a micro-batch per write. Use `batch()`
+  whenever you write to more than one observable in the same logical action.
+- **"Known limitations" section updated in both READMEs:** removed "Diamond
+  glitch outside batch" and "Deeper cross-branch cascades" items; replaced
+  with a paragraph explaining that `batch()` is now a performance tool, not
+  a consistency requirement.
+
+Tests: +5 new tests (T2.1 auto-batch group: diamond without batch, 3-level
+cascade, write-in-ever-callback, explicit-batch coalescing, post-close
+no-op); total 168.
+
 ## 1.1.1
+
 
 Patch release — no breaking changes, no new external dependencies.
 

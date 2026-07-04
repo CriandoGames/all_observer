@@ -161,24 +161,65 @@ class ListenerRegistry {
     }
   }
 
-  /// Notifies immediately via [notifyAll], unless an `Observable.batch()`
-  /// is currently active, in which case this registry is queued in
-  /// [BatchScope] and notified exactly once when the outermost batch ends.
-  /// Used by [Observable] and every reactive collection instead of calling
-  /// [notifyAll] directly, so both participate in batching.
+  /// Enqueues this registry for notification via the two-phase batch flush,
+  /// whether or not an explicit `Observable.batch()` is already active.
   ///
-  /// Notifica imediatamente via [notifyAll], a menos que um
-  /// `Observable.batch()` esteja atualmente ativo, caso em que este
-  /// registro é enfileirado em [BatchScope] e notificado exatamente uma vez
-  /// quando o batch mais externo terminar. Usado por [Observable] e toda
-  /// coleção reativa em vez de chamar [notifyAll] diretamente, para que
-  /// ambos participem do batching.
+  /// When a batch is already active, this registry is simply added to the
+  /// pending queue as before. When no explicit batch is active, a micro-batch
+  /// (`BatchScope.run`) is opened on the spot — this routes every write,
+  /// even a single standalone `observable.value = x`, through the same
+  /// two-phase fixed-point flush: first all registries drain (plain
+  /// observables and collections settle to their final values), *then* every
+  /// `Computed` marked dirty recomputes, reading only fully-settled upstream
+  /// values. This makes glitch-free behavior the default for all writes,
+  /// not just those wrapped in an explicit `Observable.batch()`.
+  ///
+  /// **Fast-path:** if there are no listeners at all, returns immediately
+  /// without opening the micro-batch — this keeps zero-listener writes at
+  /// the same O(1) cost as before.
+  ///
+  /// **Wave-limit safety net:** the micro-batch relies on the `kMaxFlushWaves`
+  /// guard added in v1.1.1 (T1.1). Any in-batch cycle now terminates with a
+  /// descriptive `FlutterError` instead of looping forever.
+  ///
+  /// Enfileira este registro para notificação via o flush de batch em duas
+  /// fases, esteja ou não um `Observable.batch()` explícito ativo.
+  ///
+  /// Quando um batch já está ativo, este registro é simplesmente adicionado
+  /// à fila pendente como antes. Quando nenhum batch explícito está ativo,
+  /// um micro-batch (`BatchScope.run`) é aberto na hora — isso roteia toda
+  /// escrita, mesmo um `observable.value = x` avulso, pelo mesmo flush de
+  /// ponto fixo em duas fases: primeiro todos os registros são drenados
+  /// (observáveis e coleções simples se estabilizam nos valores finais),
+  /// *depois* todo `Computed` marcado como sujo recalcula, lendo apenas
+  /// valores upstream já estabilizados. Isso torna o comportamento
+  /// livre de glitch o padrão para todas as escritas, não só as envoltas
+  /// em `Observable.batch()` explícito.
+  ///
+  /// **Fast-path:** se não há nenhum listener, retorna imediatamente sem
+  /// abrir o micro-batch — mantém escritas sem listeners ao custo O(1) de
+  /// antes.
+  ///
+  /// **Rede de segurança de ondas:** o micro-batch depende do guard
+  /// `kMaxFlushWaves` adicionado na v1.1.1 (T1.1). Qualquer ciclo dentro
+  /// do batch agora termina com um `FlutterError` descritivo em vez de
+  /// entrar em loop infinito.
   void notifyOrQueue() {
     if (BatchScope.isActive) {
       BatchScope.queue(this);
       return;
     }
-    notifyAll();
+    // Fast-path: no listeners → nothing to do, skip the micro-batch overhead.
+    // Caminho rápido: sem listeners → nada a fazer, evita o overhead do
+    // micro-batch.
+    if (!hasListeners) {
+      return;
+    }
+    // Wrap in a micro-batch so that even a single standalone write goes
+    // through the two-phase flush: registries first, Computeds second.
+    // Envolve em um micro-batch para que mesmo uma escrita avulsa passe
+    // pelo flush em duas fases: registros primeiro, Computeds depois.
+    BatchScope.run(() => BatchScope.queue(this));
   }
 
   /// Removes every listener. Called on dispose.

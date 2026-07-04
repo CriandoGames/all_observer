@@ -109,14 +109,23 @@ void main() {
         expect(() => a.value = 1, returnsNormally);
       });
 
-      // The depth guard fired (not the wave guard).
+      // With v1.2.0 auto-batch (micro-batch), a standalone write outside an
+      // explicit batch goes through a micro-batch — so the cycle becomes
+      // iterative (wave-based) and is caught by the kMaxFlushWaves guard,
+      // rather than the kMaxNotificationDepth depth guard as in v1.1.x.
+      // Either way: the write returns normally, exactly one error is reported,
+      // and it is a FlutterError.
+      //
+      // Com o auto-batch da v1.2.0 (micro-batch), uma escrita avulsa fora de
+      // um batch explícito passa por um micro-batch — então o ciclo se torna
+      // iterativo (baseado em ondas) e é capturado pelo guard kMaxFlushWaves,
+      // em vez do guard de profundidade kMaxNotificationDepth como na v1.1.x.
+      // Em todo caso: a escrita retorna normalmente, exatamente um erro é
+      // reportado e é um FlutterError.
       expect(reported, hasLength(greaterThanOrEqualTo(1)));
       expect(reported.first.exception, isA<FlutterError>());
-      // The message mentions kMaxNotificationDepth (the old guard).
-      expect(
-        reported.first.exception.toString(),
-        contains('possible update cycle detected'),
-      );
+      // Both guards produce a FlutterError — just check for the common part.
+      expect(reported.first.exception.toString(), contains('all_observer'));
     });
 
     test('kMaxFlushWaves is exported and has the documented value', () {

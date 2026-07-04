@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 <a href="https://pub.dev/packages/all_observer/score"><img src="https://img.shields.io/pub/points/all_observer?label=pub%20points" alt="pub points"></a>
- <img src="https://img.shields.io/badge/testes-163-brightgreen" alt="163 testes"> <!-- atualizar ao adicionar testes -->
+ <img src="https://img.shields.io/badge/testes-168-brightgreen" alt="168 testes"> <!-- atualizar ao adicionar testes -->
 
 
 Estado reativo para Flutter, sem dependências. Valores `Observable` mais um
@@ -392,29 +392,17 @@ apenas da *reatividade*, não da arquitetura do app:
 
 ## Limitações conhecidas
 
-- **Glitch do diamante fora do `batch`.** Um grafo de dependências em
-  diamante (dois `Computed` derivados da mesma origem, um terceiro
-  dependendo de ambos) pode recalcular mais de uma vez, e brevemente
-  observar uma mistura de um ramo já atualizado com outro ainda
-  desatualizado, quando as escritas a montante acontecem fora de
-  `Observable.batch()`. Envolva essas escritas em `batch()` para obter
-  exatamente um recompute por `Computed` afetado, sempre a partir de
-  valores a montante consistentes.
-- **Cascatas mais profundas, cruzando ramos, dentro de um `batch` podem
-  recalcular uma vez a mais do que o estritamente necessário — nunca de
-  forma inconsistente, e nunca com uma notificação extra.** O flush que
-  mitiga o glitch do diamante (acima) processa mudanças em ondas; um
-  `Computed` alcançável por dois caminhos diferentes na mesma onda (ex.:
-  uma dependência a duas camadas de distância da escrita, e uma segunda
-  dependência a apenas uma camada) pode acabar recalculando esse mesmo
-  valor, já correto, uma segunda vez antes do flush se estabilizar. Todo
-  recompute ainda enxerga apenas valores a montante totalmente
-  consistentes (nunca um intermediário obsoleto/misto), e como o recompute
-  redundante sempre produz o valor idêntico, ele nunca dispara uma segunda
-  notificação para os listeners daquele `Computed` — apenas a contagem
-  interna de recomputes é afetada, e só para grafos com esse formato. Um
-  diamante simples de dois `Computed`s (veja acima) não é afetado e sempre
-  recalcula exatamente uma vez.
+- **`Observable.batch()` é uma otimização de desempenho, não um requisito de
+  consistência.** Desde a v1.2.0, toda escrita — mesmo um `observable.value = x`
+  avulso, fora de qualquer `batch()` explícito — é automaticamente roteada pelo
+  mesmo flush em duas fases que `batch()` usa. Grafos de dependências em
+  diamante (`Computed` A e B derivados da mesma fonte S, `Computed` C
+  dependendo de A e B) sempre recalculam exatamente uma vez, sempre a partir
+  de valores a montante totalmente estabilizados — sem glitch, sem `batch()`
+  necessário. Envolver múltiplas escritas em `batch()` continua sendo útil
+  para coalescer notificações: todas as escritas no callback são confirmadas
+  primeiro, e então os listeners são notificados uma vez por observável
+  alterado, em vez de uma vez por escrita.
 - **`Computed` permanece inscrito após a primeira leitura, até `close()`.**
   Ler `.value` (ou anexar um listener) faz um `Computed` se inscrever
   indefinidamente em suas dependências atuais — ele não se desinscreve

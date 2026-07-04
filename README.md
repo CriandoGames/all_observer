@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 <a href="https://pub.dev/packages/all_observer/score"><img src="https://img.shields.io/pub/points/all_observer?label=pub%20points" alt="pub points"></a>
- <img src="https://img.shields.io/badge/testes-163-brightgreen" alt="163 testes"> <!-- atualizar ao adicionar testes -->
+ <img src="https://img.shields.io/badge/testes-168-brightgreen" alt="168 testes"> <!-- atualizar ao adicionar testes -->
 
 Reactive state for Flutter, zero dependencies. `Observable` values plus an
 auto-tracking `Observer` widget — a small, safe, dependency-free core for
@@ -380,27 +380,16 @@ What has **no** equivalent here, by design — `all_observer` only handles
 
 ## Known limitations
 
-- **Diamond glitch outside `batch`.** A "diamond" dependency graph (two
-  `Computed`s derived from the same source, a third depending on both) can
-  recompute more than once, and briefly observe a mix of one already
-  -updated branch with one still-stale one, when the upstream writes
-  happen outside `Observable.batch()`. Wrap such writes in `batch()` to
-  get exactly one recompute per affected `Computed`, always from
-  consistent upstream values.
-- **Deeper, cross-branch cascades inside `batch` can recompute once more
-  than strictly necessary — never inconsistently, and never with an extra
-  notification.** The flush mitigating the diamond glitch (above) processes
-  changes wave by wave; a `Computed` that is reachable through two
-  different paths in the same wave (e.g. one dependency two levels removed
-  from the write, and a second dependency only one level removed) can end
-  up recomputing that same, already-correct value a second time before the
-  flush settles. Every recompute still only ever sees fully consistent
-  upstream values (never a stale/mixed intermediate), and since the
-  redundant recompute always produces the identical value, it never
-  triggers a second notification to that `Computed`'s own listeners — only
-  the internal recompute count is affected, and only for graphs shaped
-  like this. A simple two-`Computed` diamond (see above) is unaffected and
-  always recomputes exactly once.
+- **`Observable.batch()` is a performance optimization, not a consistency
+  requirement.** Since v1.2.0 every write — even a standalone
+  `observable.value = x` outside any explicit `batch()` — is automatically
+  routed through the same two-phase flush that `batch()` uses. Diamond
+  dependency graphs (`Computed` A and B both derived from source S, `Computed`
+  C depending on A and B) always recompute exactly once, always from fully
+  settled upstream values — no glitch, no batch required. Wrapping multiple
+  writes in `batch()` remains useful to coalesce notifications: all writes
+  in the callback are committed first, then listeners are notified once per
+  changed observable, instead of once per write.
 - **`Computed` stays subscribed after its first read, until `close()`.**
   Reading `.value` (or attaching a listener) makes a `Computed` subscribe
   to its current dependencies indefinitely — it does not unsubscribe
