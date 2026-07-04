@@ -118,5 +118,6 @@ class ObservableFuture<T> extends Observable<AsyncState<T>> {
   ///
   /// Alias para [run], para pontos de uso em que "refresh" expressa melhor
   /// a intenção (pull-to-refresh, um botão de tentar novamente).
+  @override
   Future<void> refresh() => run();
 }
