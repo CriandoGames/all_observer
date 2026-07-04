@@ -11,6 +11,9 @@ void main() {
 /// Demonstra: um contador, uma lista reativa, um worker, e um alternador
 /// em tempo real para os logs de debug.
 class ExampleApp extends StatelessWidget {
+  /// Creates the example app.
+  ///
+  /// Cria o app de exemplo.
   const ExampleApp({super.key});
 
   @override
