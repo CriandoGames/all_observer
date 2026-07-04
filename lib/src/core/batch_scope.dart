@@ -3,6 +3,24 @@ import 'package:flutter/foundation.dart';
 import '../logging/observer_logger.dart';
 import 'listener_registry.dart';
 
+/// Maximum number of flush waves (full drain cycles of `_pending` +
+/// `_dirtyFlushCallbacks`) before [BatchScope._flushPending] aborts with a
+/// descriptive error. Each wave corresponds to one complete pass where every
+/// pending registry and every dirty-flush callback run; a legitimate
+/// notification cascade needs as many waves as the longest dependency chain.
+/// 100 is far more than any real-world graph depth and keeps the total work
+/// bounded.
+///
+/// Número máximo de ondas de flush (ciclos completos de drenagem de
+/// `_pending` + `_dirtyFlushCallbacks`) antes que
+/// [BatchScope._flushPending] aborte com um erro descritivo. Cada onda
+/// corresponde a uma passagem completa em que todos os registros pendentes
+/// e todos os callbacks de flush sujo são executados; uma cascata de
+/// notificações legítima precisa de tantas ondas quanto a profundidade da
+/// cadeia de dependências mais longa. 100 é muito mais do que qualquer
+/// profundidade real de grafo e mantém o trabalho total limitado.
+const int kMaxFlushWaves = 100;
+
 /// Tracks the currently active `Observable.batch()` nesting depth and the
 /// set of [ListenerRegistry]s pending notification once the outermost batch
 /// completes.
@@ -149,8 +167,55 @@ abstract final class BatchScope {
   // estabilizado e o notificado, em uma onda posterior deste mesmo loop.
   static void _flushPending() {
     _flushing = true;
+    int waves = 0;
     try {
       while (_pending.isNotEmpty || _dirtyFlushCallbacks.isNotEmpty) {
+        // Guard against infinite loops caused by mutual cycles inside a
+        // batch (e.g. `a.listen((v) => b.value = v + 1)` combined with
+        // `b.listen((v) => a.value = v + 1)` both inside the same batch).
+        // Unlike `kMaxNotificationDepth` — which caps *nested call-stack*
+        // recursion — this caps iterative `while` waves, which is the form
+        // that in-batch cycles take after the batch transform them from
+        // recursive calls into queued re-notifications.
+        //
+        // Protege contra loops infinitos causados por ciclos mútuos dentro
+        // de um batch (ex.: `a.listen((v) => b.value = v + 1)` combinado
+        // com `b.listen((v) => a.value = v + 1)` ambos dentro do mesmo
+        // batch). Diferente de `kMaxNotificationDepth` — que limita a
+        // *recursão aninhada na pilha de chamadas* — este limita as ondas
+        // iterativas do `while`, que é a forma que os ciclos dentro de um
+        // batch assumem após o batch transformá-los de chamadas recursivas
+        // em re-notificações enfileiradas.
+        if (waves >= kMaxFlushWaves) {
+          final FlutterError waveError = FlutterError(
+            'all_observer: possível ciclo de atualização dentro de um '
+            'batch detectado. O número de ondas de flush excedeu '
+            '$kMaxFlushWaves (um listener de um observável escreve em '
+            'outro cujo listener escreve de volta, em loop). Interrompendo '
+            'o flush e descartando as notificações restantes em vez de '
+            'travar indefinidamente. / Possible in-batch update cycle '
+            'detected: flush wave count exceeded $kMaxFlushWaves. '
+            'Aborting flush and discarding remaining notifications.',
+          );
+          ObserverLogger.caughtException(
+            'ciclo de atualização dentro de batch — ondas excedidas',
+            waveError,
+          );
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: waveError,
+              library: 'all_observer',
+              context: ErrorDescription(
+                'while flushing a batch — possible in-batch update cycle',
+              ),
+            ),
+          );
+          _pending.clear();
+          _dirtyFlushCallbacks.clear();
+          break;
+        }
+        waves++;
+
         if (_pending.isNotEmpty) {
           final List<ListenerRegistry> toNotify = List<ListenerRegistry>.of(
             _pending,
