@@ -17,6 +17,7 @@ abstract final class _AnsiColor {
   static const String gray = '\x1B[90m';
   static const String yellowBold = '\x1B[1;33m';
   static const String magenta = '\x1B[35m';
+  static const String redBold = '\x1B[1;31m';
 }
 
 /// Debug-only logger for the package. Every call is guarded by `kDebugMode`
@@ -139,6 +140,35 @@ abstract final class ObserverLogger {
       suggestion:
           'Isso causa loop de rebuild. Mova a alteração para '
           'fora do build.',
+    );
+  }
+
+  /// Logs, in red, a one-line summary of an exception the package caught
+  /// and isolated (e.g. a listener that threw during notification). This is
+  /// printed *in addition to* the standard [FlutterError.reportError] call
+  /// the caller also makes — that call still reaches the host app's own
+  /// error reporting (Crashlytics, Sentry, the default framework console
+  /// dump, ...) uncolored, exactly as Flutter prints it for any other
+  /// package. This method only adds a package-colored line on top; it does
+  /// not touch [FlutterError.onError], so it never interferes with how the
+  /// host app handles its own errors.
+  ///
+  /// Registra, em vermelho, um resumo de uma linha de uma exceção que o
+  /// pacote capturou e isolou (por exemplo, um listener que lançou durante
+  /// a notificação). Isso é impresso *além* da chamada padrão a
+  /// [FlutterError.reportError] que quem chama também faz — essa chamada
+  /// continua chegando ao próprio sistema de relato de erros do app
+  /// hospedeiro (Crashlytics, Sentry, o dump padrão do framework no
+  /// console, ...) sem cor, exatamente como o Flutter imprime para
+  /// qualquer outro pacote. Este método só adiciona uma linha colorida do
+  /// pacote por cima; ele não mexe em [FlutterError.onError], então nunca
+  /// interfere em como o app hospedeiro trata seus próprios erros.
+  static void caughtException(String context, Object error) {
+    if (!kDebugMode || !ObserverConfig.warnings) {
+      return;
+    }
+    debugPrint(
+      _prefixed(_paint(_AnsiColor.redBold, '✖ $context: $error')),
     );
   }
 

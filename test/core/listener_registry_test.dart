@@ -1,5 +1,32 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:all_observer/src/core/listener_registry.dart';
+
+/// Temporarily replaces [FlutterError.onError] with a capturing handler for
+/// the duration of [run], restoring the previous handler afterwards (even
+/// if [run] throws). Needed because `flutter_test`'s default
+/// [FlutterError.onError] fails the current test whenever
+/// [FlutterError.reportError] is called — which these tests trigger on
+/// purpose, as part of the behavior under test, not as a real failure.
+///
+/// Substitui temporariamente [FlutterError.onError] por um handler que
+/// captura os erros durante [run], restaurando o handler anterior depois
+/// (mesmo que [run] lance). Necessário porque o [FlutterError.onError]
+/// padrão do `flutter_test` falha o teste atual sempre que
+/// [FlutterError.reportError] é chamado — o que estes testes disparam de
+/// propósito, como parte do comportamento sendo testado, não como uma
+/// falha real.
+List<FlutterErrorDetails> captureReportedErrors(void Function() run) {
+  final List<FlutterErrorDetails> reported = <FlutterErrorDetails>[];
+  final FlutterExceptionHandler? previous = FlutterError.onError;
+  FlutterError.onError = reported.add;
+  try {
+    run();
+  } finally {
+    FlutterError.onError = previous;
+  }
+  return reported;
+}
 
 void main() {
   group('ListenerRegistry', () {
@@ -71,8 +98,13 @@ void main() {
       registry.add(() => throw StateError('boom'));
       registry.add(() => order.add('third'));
 
-      expect(() => registry.notifyAll(), returnsNormally);
+      final List<FlutterErrorDetails> reported = captureReportedErrors(
+        () => expect(() => registry.notifyAll(), returnsNormally),
+      );
+
       expect(order, <String>['first', 'third']);
+      expect(reported, hasLength(1));
+      expect(reported.single.exception, isA<StateError>());
     });
 
     test('notifyAll does not overflow the stack on a synchronous update '

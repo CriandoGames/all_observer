@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../logging/observer_logger.dart';
 import 'batch_scope.dart';
 import 'typedefs.dart';
 
@@ -97,16 +98,21 @@ class ListenerRegistry {
       return;
     }
     if (_notificationDepth >= kMaxNotificationDepth) {
+      final FlutterError cycleError = FlutterError(
+        'all_observer: possible update cycle detected. Notification '
+        'depth exceeded $kMaxNotificationDepth (a listener of one '
+        'observable writes to another whose listener writes back, '
+        'forever). Stopping this notification instead of overflowing '
+        'the call stack. / Possível ciclo de atualização detectado: '
+        'profundidade de notificação excedeu $kMaxNotificationDepth.',
+      );
+      ObserverLogger.caughtException(
+        'possível ciclo de atualização detectado',
+        cycleError,
+      );
       FlutterError.reportError(
         FlutterErrorDetails(
-          exception: FlutterError(
-            'all_observer: possible update cycle detected. Notification '
-            'depth exceeded $kMaxNotificationDepth (a listener of one '
-            'observable writes to another whose listener writes back, '
-            'forever). Stopping this notification instead of overflowing '
-            'the call stack. / Possível ciclo de atualização detectado: '
-            'profundidade de notificação excedeu $kMaxNotificationDepth.',
-          ),
+          exception: cycleError,
           library: 'all_observer',
           context: ErrorDescription('while notifying observable listeners'),
         ),
@@ -120,6 +126,10 @@ class ListenerRegistry {
         try {
           listener();
         } catch (error, stackTrace) {
+          ObserverLogger.caughtException(
+            'exceção isolada em um listener',
+            error,
+          );
           FlutterError.reportError(
             FlutterErrorDetails(
               exception: error,

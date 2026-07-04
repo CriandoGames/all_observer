@@ -71,10 +71,30 @@ class Computed<T> implements ValueListenable<T> {
   @override
   T get value {
     DependencyTracker.reportRead(_registry, label: _label);
+    _ensureLive();
+    return _value;
+  }
+
+  /// Forces the first [compute] run (and, with it, the subscription to the
+  /// current dependencies) if it hasn't happened yet. No-op afterwards.
+  ///
+  /// Called both from [value] and from [addListener]/[listen], so that a
+  /// listener registered *before* the value is ever read still gets
+  /// notified of future dependency changes — matching the usual
+  /// [ValueListenable] contract, where you may listen before reading.
+  ///
+  /// Força a primeira execução de [compute] (e, com ela, a inscrição nas
+  /// dependências atuais) caso ainda não tenha ocorrido. Não faz nada depois
+  /// disso.
+  ///
+  /// Chamado tanto por [value] quanto por [addListener]/[listen], para que
+  /// um listener registrado *antes* de qualquer leitura do valor ainda seja
+  /// notificado de futuras mudanças de dependência — seguindo o contrato
+  /// usual de [ValueListenable], em que é possível escutar antes de ler.
+  void _ensureLive() {
     if (!_hasValue) {
       _recompute();
     }
-    return _value;
   }
 
   void _recompute() {
@@ -126,7 +146,10 @@ class Computed<T> implements ValueListenable<T> {
   }
 
   @override
-  void addListener(VoidCallback listener) => _registry.add(listener);
+  void addListener(VoidCallback listener) {
+    _ensureLive();
+    _registry.add(listener);
+  }
 
   @override
   void removeListener(VoidCallback listener) => _registry.remove(listener);
@@ -137,6 +160,7 @@ class Computed<T> implements ValueListenable<T> {
   /// Inscreve [callback] para valores recalculados futuros, espelhando
   /// `Observable.listen`.
   ObservableSubscription listen(void Function(T value) callback) {
+    _ensureLive();
     void listener() => callback(value);
     final Disposer dispose = _registry.add(listener);
     return ObservableSubscription.fromDisposer(dispose);
