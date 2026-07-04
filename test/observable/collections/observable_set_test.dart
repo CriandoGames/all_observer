@@ -1,8 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:all_observer/src/core/dependency_tracker.dart';
+import 'package:all_observer/src/errors/observer_error.dart';
+import 'package:all_observer/src/logging/observer_config.dart';
 import 'package:all_observer/src/observable/collections/observable_set.dart';
 
 void main() {
+  setUp(ObserverConfig.reset);
+  tearDown(ObserverConfig.reset);
+
   group('ObservableSet', () {
     test('reading contains registers a dependency', () {
       final ObservableSet<int> set = ObservableSet<int>(<int>{1});
@@ -80,6 +85,27 @@ void main() {
       set.close();
       final subscription = set.listen(() {});
       expect(subscription.isActive, isFalse);
+    });
+  });
+
+  group('ObservableSet write-during-build guard', () {
+    test('strictMode turns a mutation during an active tracking context '
+        'into a thrown ObserverError', () {
+      ObserverConfig.strictMode = true;
+      final ObservableSet<int> set = ObservableSet<int>();
+      final TrackingContext ctx = TrackingContext(() {});
+      expect(
+        () => DependencyTracker.track(ctx, () => set.add(1)),
+        throwsA(isA<ObserverError>()),
+      );
+    });
+
+    test('mutation outside any tracking context is unaffected by '
+        'strictMode', () {
+      ObserverConfig.strictMode = true;
+      final ObservableSet<int> set = ObservableSet<int>();
+      expect(() => set.add(1), returnsNormally);
+      expect(set, <int>{1});
     });
   });
 }

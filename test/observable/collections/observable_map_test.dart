@@ -1,8 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:all_observer/src/core/dependency_tracker.dart';
+import 'package:all_observer/src/errors/observer_error.dart';
+import 'package:all_observer/src/logging/observer_config.dart';
 import 'package:all_observer/src/observable/collections/observable_map.dart';
 
 void main() {
+  setUp(ObserverConfig.reset);
+  tearDown(ObserverConfig.reset);
+
   group('ObservableMap', () {
     test('reading a key registers a dependency', () {
       final ObservableMap<String, int> map = ObservableMap<String, int>(
@@ -91,6 +96,27 @@ void main() {
       map.listen(() => calls++);
       map.removeWhere((String k, int v) => v.isEven);
       expect(calls, 0);
+    });
+  });
+
+  group('ObservableMap write-during-build guard', () {
+    test('strictMode turns a mutation during an active tracking context '
+        'into a thrown ObserverError', () {
+      ObserverConfig.strictMode = true;
+      final ObservableMap<String, int> map = ObservableMap<String, int>();
+      final TrackingContext ctx = TrackingContext(() {});
+      expect(
+        () => DependencyTracker.track(ctx, () => map['a'] = 1),
+        throwsA(isA<ObserverError>()),
+      );
+    });
+
+    test('mutation outside any tracking context is unaffected by '
+        'strictMode', () {
+      ObserverConfig.strictMode = true;
+      final ObservableMap<String, int> map = ObservableMap<String, int>();
+      expect(() => map['a'] = 1, returnsNormally);
+      expect(map['a'], 1);
     });
   });
 }
