@@ -400,6 +400,21 @@ apenas da *reatividade*, não da arquitetura do app:
   `Observable.batch()`. Envolva essas escritas em `batch()` para obter
   exatamente um recompute por `Computed` afetado, sempre a partir de
   valores a montante consistentes.
+- **Cascatas mais profundas, cruzando ramos, dentro de um `batch` podem
+  recalcular uma vez a mais do que o estritamente necessário — nunca de
+  forma inconsistente, e nunca com uma notificação extra.** O flush que
+  mitiga o glitch do diamante (acima) processa mudanças em ondas; um
+  `Computed` alcançável por dois caminhos diferentes na mesma onda (ex.:
+  uma dependência a duas camadas de distância da escrita, e uma segunda
+  dependência a apenas uma camada) pode acabar recalculando esse mesmo
+  valor, já correto, uma segunda vez antes do flush se estabilizar. Todo
+  recompute ainda enxerga apenas valores a montante totalmente
+  consistentes (nunca um intermediário obsoleto/misto), e como o recompute
+  redundante sempre produz o valor idêntico, ele nunca dispara uma segunda
+  notificação para os listeners daquele `Computed` — apenas a contagem
+  interna de recomputes é afetada, e só para grafos com esse formato. Um
+  diamante simples de dois `Computed`s (veja acima) não é afetado e sempre
+  recalcula exatamente uma vez.
 - **`Computed` permanece inscrito após a primeira leitura, até `close()`.**
   Ler `.value` (ou anexar um listener) faz um `Computed` se inscrever
   indefinidamente em suas dependências atuais — ele não se desinscreve

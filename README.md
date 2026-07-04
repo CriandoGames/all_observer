@@ -431,14 +431,14 @@ verified publisher:
   pure-Dart image compression (JPEG, PNG, GIF, BMP, TIFF, WebP), running
   in isolates to avoid UI jank, no native code required.
 
-## 👥 Contribuidores
+## 👥 Contributors
 
 [![Contributors](https://contrib.rocks/image?repo=CriandoGames/all_observer)](https://github.com/CriandoGames/all_observer/graphs/contributors)
 
 Made with [contrib.rocks](https://contrib.rocks).
 
-Contribuições são bem-vindas! Leia o [CONTRIBUTING.md](CONTRIBUTING.md) para
-começar.
+Contributions are welcome! Read [CONTRIBUTING.md](CONTRIBUTING.md) to get
+started.
 
 ---
 
