@@ -58,6 +58,13 @@ class CoreObservable<T> {
 
   static bool _defaultEquals<T>(T a, T b) => a == b;
 
+  /// The listener registry backing this [CoreObservable]. Exposed mainly
+  /// for the Flutter `Observable` wrapper (e.g. to count listeners on
+  /// dispose).
+  ///
+  /// O registro de listeners por trás deste [CoreObservable]. Exposto
+  /// principalmente para o wrapper Flutter `Observable` (ex.: para contar
+  /// listeners no descarte).
   final ListenerRegistry registry = ListenerRegistry();
   final String? _name;
   final bool Function(T a, T b) _equals;

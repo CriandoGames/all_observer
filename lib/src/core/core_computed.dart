@@ -43,6 +43,13 @@ class CoreComputed<T> {
   final T Function() _compute;
   final String? _name;
   final bool Function(T a, T b) _equals;
+
+  /// The listener registry backing this [CoreComputed]. Exposed mainly for
+  /// the Flutter `Computed` wrapper (e.g. to count listeners on dispose).
+  ///
+  /// O registro de listeners por trás deste [CoreComputed]. Exposto
+  /// principalmente para o wrapper Flutter `Computed` (ex.: para contar
+  /// listeners no descarte).
   final ListenerRegistry registry = ListenerRegistry();
 
   bool _hasValue = false;

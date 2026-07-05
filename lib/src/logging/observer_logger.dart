@@ -200,25 +200,6 @@ abstract final class ObserverLogger {
     _console.onDispose(event);
   }
 
-  /// Checks whether a write/mutation is happening while an [Observer] (or
-  /// any tracked builder) is currently running, and reacts accordingly:
-  /// when [ObserverConfig.strictMode] is `true`, throws an [ObserverError]
-  /// instead of only warning — useful in CI/tests to turn this common
-  /// mistake into a hard failure. Otherwise emits the usual non-fatal
-  /// warning. Used by both [Observable.value]'s setter and every reactive
-  /// collection's mutating members, so the check covers `value =`
-  /// reassignment as well as collection mutations (`add`, `addAll`,
-  /// `clear`, ...).
-  ///
-  /// Verifica se uma escrita/mutação está ocorrendo enquanto um [Observer]
-  /// (ou qualquer builder rastreado) está em execução, e reage de acordo:
-  /// quando [ObserverConfig.strictMode] for `true`, lança um
-  /// [ObserverError] em vez de apenas emitir warning — útil em CI/testes
-  /// para transformar esse erro comum em falha dura. Caso contrário, emite
-  /// o warning não fatal de sempre. Usado tanto pelo setter de
-  /// [Observable.value] quanto por todo membro mutante das coleções
-  /// reativas, então a checagem cobre tanto a reatribuição de `value =`
-  /// quanto mutações de coleção (`add`, `addAll`, `clear`, ...).
   /// Installs the Flutter-side error reporter the first time it is called
   /// (idempotent — subsequent calls are a no-op), so that
   /// `CoreErrorReporting.report` calls made by the pure-Dart
@@ -258,6 +239,25 @@ abstract final class ObserverLogger {
         };
   }
 
+  /// Checks whether a write/mutation is happening while an [Observer] (or
+  /// any tracked builder) is currently running, and reacts accordingly:
+  /// when [ObserverConfig.strictMode] is `true`, throws an [ObserverError]
+  /// instead of only warning — useful in CI/tests to turn this common
+  /// mistake into a hard failure. Otherwise emits the usual non-fatal
+  /// warning. Used by both [Observable.value]'s setter and every reactive
+  /// collection's mutating members, so the check covers `value =`
+  /// reassignment as well as collection mutations (`add`, `addAll`,
+  /// `clear`, ...).
+  ///
+  /// Verifica se uma escrita/mutação está ocorrendo enquanto um [Observer]
+  /// (ou qualquer builder rastreado) está em execução, e reage de acordo:
+  /// quando [ObserverConfig.strictMode] for `true`, lança um
+  /// [ObserverError] em vez de apenas emitir warning — útil em CI/testes
+  /// para transformar esse erro comum em falha dura. Caso contrário, emite
+  /// o warning não fatal de sempre. Usado tanto pelo setter de
+  /// [Observable.value] quanto por todo membro mutante das coleções
+  /// reativas, então a checagem cobre tanto a reatribuição de `value =`
+  /// quanto mutações de coleção (`add`, `addAll`, `clear`, ...).
   static void checkWriteDuringBuild(String label) {
     ensureErrorReporterInstalled();
     if (DependencyTracker.current == null) {
