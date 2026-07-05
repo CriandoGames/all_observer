@@ -1,21 +1,25 @@
 /// Lightweight reactive state management for Flutter, with zero external
 /// dependencies. Exposes [Observable] values, derived [Computed] values,
-/// race-safe async state via `ObservableFuture`/`AsyncState`, the
-/// auto-tracking [Observer] widget (including `Observer.withChild` for
-/// static child subtrees), reactive collections, manual subscriptions,
-/// `Observable.batch()`, `Observable.select`, and workers (`ever`, `once`,
-/// `debounce`, `interval`).
+/// standalone reactive `effect()`s, race-safe async state via
+/// `ObservableFuture`/`AsyncState`, the auto-tracking [Observer] widget
+/// (including `Observer.withChild` for static child subtrees), reactive
+/// collections, manual subscriptions, `Observable.batch()`,
+/// `Observable.select`, `untracked()`/`Observable.peek()` escape hatches,
+/// and workers (`ever`, `once`, `debounce`, `interval`).
 ///
 /// Gerenciamento de estado reativo e leve para Flutter, sem nenhuma
 /// dependência externa. Expõe valores [Observable], valores derivados
-/// [Computed], estado assíncrono seguro contra corrida via
-/// `ObservableFuture`/`AsyncState`, o widget [Observer] com
-/// auto-rastreamento (incluindo `Observer.withChild` para subárvores
+/// [Computed], `effect()`s reativos autônomos, estado assíncrono seguro
+/// contra corrida via `ObservableFuture`/`AsyncState`, o widget [Observer]
+/// com auto-rastreamento (incluindo `Observer.withChild` para subárvores
 /// filhas estáticas), coleções reativas, subscrições manuais,
-/// `Observable.batch()`, `Observable.select` e workers (`ever`, `once`,
+/// `Observable.batch()`, `Observable.select`, as escapatórias
+/// `untracked()`/`Observable.peek()` e workers (`ever`, `once`,
 /// `debounce`, `interval`).
 library;
 
+export 'src/core/untracked.dart';
+export 'src/effects/effect.dart';
 export 'src/errors/observer_error.dart';
 export 'src/logging/observer_config.dart';
 export 'src/observable/async/async_state.dart';

@@ -66,11 +66,53 @@ class TrackingContext {
 abstract final class DependencyTracker {
   static final List<TrackingContext> _stack = <TrackingContext>[];
 
-  /// The innermost active tracking context, or `null` if none is active.
+  /// Nesting depth of active [untracked] calls. While greater than zero,
+  /// [current] reports `null` regardless of [_stack], so any observable read
+  /// underneath is not registered as a dependency of whatever outer context
+  /// (if any) is still on the stack.
+  ///
+  /// Profundidade de aninhamento de chamadas [untracked] ativas. Enquanto
+  /// maior que zero, [current] reporta `null` independentemente de [_stack],
+  /// então qualquer leitura de observável feita por baixo não é registrada
+  /// como dependência de qualquer contexto externo (se houver) ainda
+  /// empilhado.
+  static int _suspendDepth = 0;
+
+  /// The innermost active tracking context, or `null` if none is active, or
+  /// if an [untracked] call is currently suspending tracking.
   ///
   /// O contexto de rastreamento ativo mais interno, ou `null` se nenhum
-  /// estiver ativo.
-  static TrackingContext? get current => _stack.isEmpty ? null : _stack.last;
+  /// estiver ativo, ou se uma chamada [untracked] estiver atualmente
+  /// suspendendo o rastreamento.
+  static TrackingContext? get current {
+    if (_suspendDepth > 0) {
+      return null;
+    }
+    return _stack.isEmpty ? null : _stack.last;
+  }
+
+  /// Runs [action] with dependency tracking suspended: any observable read
+  /// inside [action] is *not* registered as a dependency of whatever
+  /// [Observer]/[Computed]/effect is currently tracking, even though that
+  /// outer context remains active underneath. Supports nesting (only the
+  /// outermost call needs to restore suspension). Powers the top-level
+  /// `untracked()` function and `Observable.peek()`.
+  ///
+  /// Executa [action] com o rastreamento de dependências suspenso: qualquer
+  /// observável lido dentro de [action] *não* é registrado como dependência
+  /// do [Observer]/[Computed]/effect que estiver rastreando no momento,
+  /// mesmo que esse contexto externo continue ativo por baixo. Suporta
+  /// aninhamento (apenas a chamada mais externa precisa restaurar a
+  /// suspensão). Alimenta a função `untracked()` de nível superior e
+  /// `Observable.peek()`.
+  static R untracked<R>(R Function() action) {
+    _suspendDepth++;
+    try {
+      return action();
+    } finally {
+      _suspendDepth--;
+    }
+  }
 
   /// Runs [action] with [context] pushed onto the tracking stack, popping
   /// it afterwards even if [action] throws.

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../core/batch_scope.dart';
 import '../core/dependency_tracker.dart';
 import '../core/listener_registry.dart';
+import '../core/untracked.dart';
 import '../logging/observer_config.dart';
 import '../logging/observer_logger.dart';
 import 'observable_subscription.dart';
@@ -117,6 +118,7 @@ class Observable<T> implements ValueListenable<T> {
   final String? _name;
   final bool Function(T a, T b) _equals;
   T _value;
+  T? _previousValue;
   bool _isClosed = false;
 
   String get _label => '$runtimeType(${_name ?? '#$hashCode'})';
@@ -140,6 +142,28 @@ class Observable<T> implements ValueListenable<T> {
     return _value;
   }
 
+  /// Reads [value] without registering it as a dependency of whatever
+  /// [Observer]/`Computed`/`Effect` is currently tracking (if any). Sugar
+  /// for `untracked(() => observable.value)`.
+  ///
+  /// Lê [value] sem registrá-lo como dependência do
+  /// [Observer]/`Computed`/`Effect` que estiver rastreando no momento (se
+  /// houver algum). Açúcar para `untracked(() => observable.value)`.
+  T peek() => untracked(() => value);
+
+  /// The value this observable held immediately before its most recent
+  /// notified change, or `null` if it has never changed since creation.
+  /// Only updated by an actual value change (the [value] setter when the
+  /// new value differs); [refresh] does not touch it, since the value
+  /// itself did not change.
+  ///
+  /// O valor que este observável tinha imediatamente antes de sua mudança
+  /// notificada mais recente, ou `null` se nunca mudou desde a criação. Só
+  /// é atualizado por uma mudança de valor de fato (o setter [value] quando
+  /// o novo valor difere); [refresh] não o altera, já que o valor em si não
+  /// mudou.
+  T? get previousValue => _previousValue;
+
   /// Assigns [newValue], notifying listeners only if it differs from the
   /// current value (`!=`). No-ops with a debug warning if the observable
   /// was already [close]d.
@@ -161,6 +185,7 @@ class Observable<T> implements ValueListenable<T> {
     }
     ObserverLogger.checkWriteDuringBuild(_label);
     final T oldValue = _value;
+    _previousValue = oldValue;
     _value = newValue;
     if (kDebugMode) {
       ObserverLogger.updated(_label, oldValue, newValue);
