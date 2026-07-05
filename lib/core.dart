@@ -33,6 +33,7 @@ library;
 
 export 'src/core/batch_scope.dart';
 export 'src/core/core_error_reporting.dart';
+export 'src/core/core_computed.dart';
 export 'src/core/core_observable.dart';
 export 'src/core/dependency_tracker.dart';
 export 'src/core/listener_registry.dart';
