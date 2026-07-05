@@ -33,6 +33,7 @@ library;
 
 export 'src/core/batch_scope.dart';
 export 'src/core/core_error_reporting.dart';
+export 'src/core/core_observable.dart';
 export 'src/core/dependency_tracker.dart';
 export 'src/core/listener_registry.dart';
 export 'src/core/observer_inspector.dart';
@@ -40,4 +41,6 @@ export 'src/core/recording_inspector.dart';
 export 'src/core/typedefs.dart';
 export 'src/core/untracked.dart';
 export 'src/errors/observer_cycle_error.dart';
+export 'src/errors/observer_error.dart';
 export 'src/logging/observer_config.dart';
+export 'src/observable/observable_subscription.dart';

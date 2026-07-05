@@ -19,6 +19,7 @@
 library;
 
 export 'src/core/core_error_reporting.dart';
+export 'src/core/core_observable.dart';
 export 'src/core/observer_inspector.dart';
 export 'src/core/recording_inspector.dart';
 export 'src/core/untracked.dart';
