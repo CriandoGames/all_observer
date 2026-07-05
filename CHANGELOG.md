@@ -1,3 +1,14 @@
+## 1.3.1
+
+Documentation-only release — no code changes, no breaking changes, no new
+external dependencies.
+
+- Restructured `README.md`/`README.pt-BR.md` into a lean landing page, with
+  the rest moved into topic guides under `documentation/en/` and
+  `documentation/pt-BR/` (core concepts, collections, async, workers,
+  advanced, comparison, migration from GetX, FAQ).
+- Added a hero image to both READMEs.
+
 ## 1.3.0
 
 Additive release — no breaking changes, no new external dependencies.
