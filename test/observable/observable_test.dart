@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:all_observer/src/core/dependency_tracker.dart';
 import 'package:all_observer/src/core/listener_registry.dart';
+import 'package:all_observer/src/errors/observer_cycle_error.dart';
 import 'package:all_observer/src/logging/observer_config.dart';
 import 'package:all_observer/src/observable/observable.dart';
 import 'package:all_observer/src/observable/observable_subscription.dart';
@@ -264,7 +265,7 @@ void main() {
       expect(aRuns, lessThanOrEqualTo(kMaxNotificationDepth + 1));
       expect(bRuns, lessThanOrEqualTo(kMaxNotificationDepth + 1));
       expect(reported, hasLength(1));
-      expect(reported.single.exception, isA<FlutterError>());
+      expect(reported.single.exception, isA<ObserverCycleError>());
     });
 
     test('a listener that cancels itself during notification only stops '
