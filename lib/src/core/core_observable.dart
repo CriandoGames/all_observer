@@ -1,4 +1,3 @@
-import 'batch_scope.dart';
 import 'dependency_tracker.dart';
 import 'listener_registry.dart';
 import 'observer_inspector.dart';
@@ -244,7 +243,8 @@ class CoreObservable<T> {
     }
     _warn(
       message,
-      suggestion: 'Isso causa loop de rebuild. Mova a alteração para '
+      suggestion:
+          'Isso causa loop de rebuild. Mova a alteração para '
           'fora do build.',
     );
   }

@@ -14,12 +14,7 @@ import 'observer_config.dart';
 abstract final class _AnsiColor {
   static const String reset = '\x1B[0m';
   static const String bold = '\x1B[1m';
-  static const String green = '\x1B[32m';
-  static const String cyan = '\x1B[36m';
   static const String blue = '\x1B[34m';
-  static const String gray = '\x1B[90m';
-  static const String yellowBold = '\x1B[1;33m';
-  static const String magenta = '\x1B[35m';
   static const String redBold = '\x1B[1;31m';
 }
 

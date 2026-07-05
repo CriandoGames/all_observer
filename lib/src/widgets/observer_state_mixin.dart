@@ -109,7 +109,11 @@ mixin ObserverStateMixin<T extends StatefulWidget> on State<T> {
   @override
   void dispose() {
     _disposed = true;
-    final List<Disposer> disposers = _autoDisposers;
+    // Snapshot into a *new* list before clearing — `_autoDisposers.clear()`
+    // mutates the same list instance in place, so simply assigning the
+    // reference first (without copying) would empty this snapshot too,
+    // silently skipping every disposer.
+    final List<Disposer> disposers = List<Disposer>.of(_autoDisposers);
     _autoDisposers.clear();
     for (final Disposer disposer in disposers) {
       disposer();
