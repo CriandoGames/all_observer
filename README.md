@@ -29,6 +29,7 @@ Reactive state for Flutter with zero dependencies — `final count = 0.obs;` +
 - ✂️ **No boilerplate, no code generation** — `final count = 0.obs;` plus `Observer(() => ...)` is a complete, working reactive pair.
 - 🎯 **Granular rebuilds** — dependencies are discovered by *reading* `.value` during a build, so only the widget that actually reads a value rebuilds.
 - 🛡️ **Safe by default** — glitch-free diamond dependencies, race-safe async, unmounted-widget guards, and friendly warnings instead of crashes (with opt-in `strictMode` for CI).
+- 🧪 **Testable by design** — `Observable`/`Computed` are plain Dart objects, no wrapper/DI required to test them; see [Testing](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/testing.md).
 - 🔌 **`ValueListenable` interop** — `Observable<T>` *is* a `ValueListenable<T>`, so it drops straight into `ValueListenableBuilder`, `AnimatedBuilder`, `Listenable.merge`.
 - 🩺 **Built-in colored debug logging** — flip `ObserverConfig.logging = true` and watch every create/update/track/dispose event in your terminal.
 
@@ -220,7 +221,8 @@ how it *notifies*, so it composes with any of them.
 - [Collections](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/collections.md) — `ObservableList`/`Map`/`Set`.
 - [Async](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/async.md) — `ObservableFuture`, `ObservableStream`, `AsyncState`.
 - [Workers](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/workers.md) — `ever`, `once`, `debounce`, `interval`.
-- [Advanced](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/advanced.md) — `batch`, diamond dependencies, `equals`, `setValue`, `strictMode`, logging, design decisions, limitations, testing.
+- [Advanced](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/advanced.md) — `batch`, diamond dependencies, `equals`, `setValue`, `strictMode`, logging, design decisions, limitations.
+- [Testing](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/testing.md) — how to test widgets and controllers that use all_observer, with real examples from the example app.
 - [Comparison](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/comparison.md) — detailed comparison vs GetX, Riverpod, Bloc, MobX, signals.
 - [Migrating from GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/migration_from_getx.md).
 - [FAQ](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/faq.md) — troubleshooting and common questions.

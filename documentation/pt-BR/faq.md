@@ -48,9 +48,11 @@ Flutter funcionem.
 
 `Observable`/`Computed` são objetos Dart comuns — leia/escreva/afirme
 diretamente em `test`/`flutter_test`, sem `pumpWidget` necessário a menos
-que você esteja testando um `Observer` de fato. Veja
-[Testes](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/advanced.md#testes)
-para dicas de `strictMode` e teste de timers de workers.
+que você esteja testando um `Observer` de fato. Veja o guia dedicado de
+[Testes](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/testing.md)
+para testes de widget, testes unitários, `strictMode` e dicas de teste de
+workers/async — todo exemplo lá é um teste real de
+[`example/test/`](https://github.com/CriandoGames/all_observer/tree/main/example/test).
 
 ## Qual a diferença entre `Observer` e `ValueListenableBuilder`?
 

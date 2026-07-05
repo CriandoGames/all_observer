@@ -45,9 +45,11 @@ plain `StatefulWidget`, so it works anywhere Flutter widgets do.
 
 `Observable`/`Computed` are plain Dart objects — read/write/assert on them
 directly in `test`/`flutter_test`, no `pumpWidget` required unless you're
-testing an actual `Observer`. See
-[Testing](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/advanced.md#testing)
-for `strictMode` and worker-timer testing tips.
+testing an actual `Observer`. See the dedicated
+[Testing guide](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/testing.md)
+for widget tests, unit tests, `strictMode`, and worker/async testing tips —
+every example there is a real test from
+[`example/test/`](https://github.com/CriandoGames/all_observer/tree/main/example/test).
 
 ## What's the difference between `Observer` and `ValueListenableBuilder`?
 

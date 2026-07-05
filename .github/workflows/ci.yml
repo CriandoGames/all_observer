@@ -21,3 +21,11 @@ jobs:
 
       - name: Run tests
         run: flutter test
+
+      - name: Install example dependencies
+        run: flutter pub get
+        working-directory: example
+
+      - name: Run example tests
+        run: flutter test
+        working-directory: example

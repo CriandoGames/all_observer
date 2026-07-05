@@ -339,4 +339,4 @@ ler/escrever/afirmar diretamente em `flutter_test`/`test`, sem precisar de
 
 ---
 
-Voltar ao [README](https://github.com/CriandoGames/all_observer/blob/main/README.pt-BR.md) · Anterior: [Workers](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/workers.md) · Próximo: [Comparação](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/comparison.md)
+Voltar ao [README](https://github.com/CriandoGames/all_observer/blob/main/README.pt-BR.md) · Anterior: [Workers](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/workers.md) · Próximo: [Testes](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/testing.md)

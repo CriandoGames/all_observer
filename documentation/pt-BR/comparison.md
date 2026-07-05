@@ -96,4 +96,4 @@ reativo fora do Flutter por completo.
 
 ---
 
-Voltar ao [README](https://github.com/CriandoGames/all_observer/blob/main/README.pt-BR.md) · Anterior: [Avançado](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/advanced.md) · Próximo: [Migrando do GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/migration_from_getx.md)
+Voltar ao [README](https://github.com/CriandoGames/all_observer/blob/main/README.pt-BR.md) · Anterior: [Testes](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/testing.md) · Próximo: [Migrando do GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/migration_from_getx.md)

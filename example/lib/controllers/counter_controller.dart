@@ -10,12 +10,20 @@ class CounterController {
   ///
   /// Cria um controller com [count] iniciando em [initialCount].
   CounterController({int initialCount = 0}) : count = initialCount.obs {
+    // `compute` only derives the value — it must never write to another
+    // observable while it runs. `Computed` shares the same tracking stack
+    // `Observer` uses, so mutating `log` (an ObservableList) from inside
+    // `compute` is exactly the "write during tracking" mistake the
+    // library warns about (it would even show up as a console warning).
     doubled = Computed<int>(() {
       computeRuns++;
-      final int value = count.value * 2;
-      log.add('compute #$computeRuns -> $value');
-      return value;
+      return count.value * 2;
     });
+    // Log every recompute from *outside* the tracked scope instead: once
+    // here for the eager first read, then via `listen`, whose callback
+    // always fires after `compute` has already returned.
+    log.add('compute #$computeRuns -> ${doubled.value}');
+    doubled.listen((int value) => log.add('compute #$computeRuns -> $value'));
   }
 
   /// The raw counter.

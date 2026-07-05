@@ -48,9 +48,9 @@ class _CounterDemoState extends State<CounterDemo> {
   void initState() {
     super.initState();
     _ownsController = widget.controller == null;
+    // CounterController's constructor already forces + logs the first
+    // compute, so there's nothing left to trigger here.
     _controller = widget.controller ?? CounterController();
-    // Force the first compute so the log shows it immediately.
-    _controller.doubled.value;
   }
 
   @override

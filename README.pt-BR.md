@@ -29,6 +29,7 @@ Estado reativo para Flutter sem dependências — `final count = 0.obs;` +
 - ✂️ **Sem boilerplate, sem code generation** — `final count = 0.obs;` mais `Observer(() => ...)` já é um par reativo completo e funcionando.
 - 🎯 **Rebuilds granulares** — as dependências são descobertas ao *ler* `.value` durante um build, então só o widget que de fato lê um valor reconstrói.
 - 🛡️ **Seguro por padrão** — dependências em diamante livres de glitch, async com segurança contra corrida, proteção contra widgets desmontados, e warnings amigáveis em vez de crashes (com `strictMode` opcional para CI).
+- 🧪 **Testável por design** — `Observable`/`Computed` são objetos Dart puros, sem wrapper/DI necessário para testá-los; veja [Testes](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/testing.md).
 - 🔌 **Interop com `ValueListenable`** — `Observable<T>` *é* um `ValueListenable<T>`, então entra direto em `ValueListenableBuilder`, `AnimatedBuilder`, `Listenable.merge`.
 - 🩺 **Logging colorido embutido** — ative `ObserverConfig.logging = true` e acompanhe cada evento de criação/atualização/rastreamento/descarte no terminal.
 
@@ -221,7 +222,8 @@ deles.
 - [Coleções](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/collections.md) — `ObservableList`/`Map`/`Set`.
 - [Assíncrono](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/async.md) — `ObservableFuture`, `ObservableStream`, `AsyncState`.
 - [Workers](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/workers.md) — `ever`, `once`, `debounce`, `interval`.
-- [Avançado](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/advanced.md) — `batch`, dependências em diamante, `equals`, `setValue`, `strictMode`, logging, decisões de design, limitações, testes.
+- [Avançado](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/advanced.md) — `batch`, dependências em diamante, `equals`, `setValue`, `strictMode`, logging, decisões de design, limitações.
+- [Testes](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/testing.md) — como testar widgets e controllers que usam all_observer, com exemplos reais do app de exemplo.
 - [Comparação](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/comparison.md) — comparação detalhada com GetX, Riverpod, Bloc, MobX, signals.
 - [Migrando do GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/migration_from_getx.md).
 - [FAQ](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/faq.md) — troubleshooting e perguntas frequentes.
