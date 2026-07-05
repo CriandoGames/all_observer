@@ -1,3 +1,23 @@
+## 1.3.2
+
+Documentation/example-only release — no code changes to `lib/`, no breaking
+changes, no new external dependencies.
+
+- Added real, runnable tests under `example/test/` proving the library's
+  testability: a widget test, a pure-Dart controller unit test, a
+  measurable rebuild-granularity test, a `debounce` worker test using
+  `flutter_test`'s virtual time, a deterministic `ObservableFuture` test via
+  injected fakes, and a `strictMode` misuse test.
+- Extracted the example demos' business logic into constructor-injectable
+  controllers under `example/lib/controllers/` (`CounterController`,
+  `FruitSearchController`, `FetchController`) — the "testable architecture"
+  pattern the new guide recommends.
+- New `documentation/en/testing.md` / `documentation/pt-BR/testing.md`
+  guide, linking every snippet to the real test file it comes from; linked
+  from both READMEs, both FAQs, and the doc navigation chain.
+- Added `example/README.md` and wired `example/` into CI (`flutter test`
+  now also runs there).
+
 ## 1.3.1
 
 Documentation-only release — no code changes, no breaking changes, no new
