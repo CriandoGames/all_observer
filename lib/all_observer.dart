@@ -31,6 +31,7 @@ export 'src/logging/console_inspector.dart';
 export 'src/logging/observer_config.dart';
 export 'src/observable/async/async_state.dart';
 export 'src/observable/async/observable_future.dart';
+export 'src/observable/async/observable_stream.dart';
 export 'src/observable/collections/observable_list.dart';
 export 'src/observable/collections/observable_map.dart';
 export 'src/observable/collections/observable_set.dart';

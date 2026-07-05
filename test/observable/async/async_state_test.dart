@@ -83,5 +83,11 @@ void main() {
       );
       expect(matched, 'data:5');
     });
+
+    test('AsyncValue is a plain alias for AsyncState', () {
+      const AsyncValue<int> value = AsyncData<int>(1);
+      expect(value, isA<AsyncState<int>>());
+      expect(value, const AsyncData<int>(1));
+    });
   });
 }

@@ -193,3 +193,16 @@ final class AsyncError<T> extends AsyncState<T> {
   @override
   String toString() => 'AsyncError<$T>($error)';
 }
+
+/// Alias for [AsyncState], matching the `AsyncValue` name used by other
+/// loading/data/error patterns in the ecosystem, for readers coming from
+/// that vocabulary. Purely a naming convenience — identical type, so
+/// `AsyncValue<T>` and `AsyncState<T>` are interchangeable everywhere
+/// (including in `switch`/`when` patterns).
+///
+/// Alias para [AsyncState], espelhando o nome `AsyncValue` usado por outros
+/// padrões de carregando/dados/erro no ecossistema, para quem já vem
+/// familiarizado com esse vocabulário. Puramente uma conveniência de nome —
+/// tipo idêntico, então `AsyncValue<T>` e `AsyncState<T>` são
+/// intercambiáveis em qualquer lugar (inclusive em padrões `switch`/`when`).
+typedef AsyncValue<T> = AsyncState<T>;
