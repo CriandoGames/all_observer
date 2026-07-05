@@ -4,6 +4,7 @@ import '../core/core_error_reporting.dart';
 import '../core/dependency_tracker.dart';
 import '../core/observer_inspector.dart';
 import '../errors/observer_error.dart';
+import 'console_inspector.dart';
 import 'observer_config.dart';
 
 /// ANSI escape codes used by [ObserverLogger] to colorize terminal output.
@@ -32,6 +33,21 @@ abstract final class _AnsiColor {
 /// a saída colorida.
 abstract final class ObserverLogger {
   static const String _prefix = '[all_observer]';
+
+  /// The single default [ObserverInspector] instance this logger invokes
+  /// directly (unconditionally, on every call to [created]/[updated]/
+  /// [disposed]/[warn]) to reproduce the package's classic colored console
+  /// output. See [ConsoleInspector]'s class doc for why this is separate
+  /// from [ObserverConfig.inspectors] and from the `dispatch` parameter
+  /// below.
+  ///
+  /// A única instância padrão de [ObserverInspector] que este logger invoca
+  /// diretamente (incondicionalmente, a cada chamada de [created]/[updated]/
+  /// [disposed]/[warn]) para reproduzir a saída colorida clássica do pacote
+  /// no console. Ver o doc de classe de [ConsoleInspector] para entender por
+  /// que isso é separado de [ObserverConfig.inspectors] e do parâmetro
+  /// `dispatch` abaixo.
+  static const ConsoleInspector _console = ConsoleInspector();
 
   static String _paint(String code, String text) {
     if (!ObserverConfig.useColors) {
@@ -110,23 +126,20 @@ abstract final class ObserverLogger {
   /// despachou esse evento por conta própria (ex.: `CoreObservable`,
   /// envolvido pela `Observable` do Flutter), para evitar que cada
   /// inspector registrado veja o mesmo evento lógico duas vezes.
-  static void created(String label, Object? initialValue, {bool dispatch = true}) {
+  static void created(
+    String label,
+    Object? initialValue, {
+    bool dispatch = true,
+  }) {
+    final ObservableCreateEvent event = ObservableCreateEvent(
+      label,
+      initialValue,
+      stackTrace: _maybeStackTrace(),
+    );
     if (dispatch) {
-      _dispatch(
-        (ObserverInspector i) => i.onCreate(
-          ObservableCreateEvent(
-            label,
-            initialValue,
-            stackTrace: _maybeStackTrace(),
-          ),
-        ),
-      );
+      _dispatch((ObserverInspector i) => i.onCreate(event));
     }
-    if (!ObserverConfig.logging || !_allowed(ObserverLogLevel.lifecycle)) {
-      return;
-    }
-    final String value = _paint(_AnsiColor.magenta, '$initialValue');
-    debugPrint(_prefixed(_paint(_AnsiColor.green, '✚ $label criado → $value')));
+    _console.onCreate(event);
   }
 
   /// Logs a value update, showing the previous and new value.
@@ -142,23 +155,16 @@ abstract final class ObserverLogger {
     Object? newValue, {
     bool dispatch = true,
   }) {
+    final ObservableUpdateEvent event = ObservableUpdateEvent(
+      label,
+      oldValue,
+      newValue,
+      stackTrace: _maybeStackTrace(),
+    );
     if (dispatch) {
-      _dispatch(
-        (ObserverInspector i) => i.onUpdate(
-          ObservableUpdateEvent(
-            label,
-            oldValue,
-            newValue,
-            stackTrace: _maybeStackTrace(),
-          ),
-        ),
-      );
+      _dispatch((ObserverInspector i) => i.onUpdate(event));
     }
-    if (!ObserverConfig.logging || !_allowed(ObserverLogLevel.updates)) {
-      return;
-    }
-    final String values = _paint(_AnsiColor.magenta, '$oldValue → $newValue');
-    debugPrint(_prefixed(_paint(_AnsiColor.cyan, '↻ $label: $values')));
+    _console.onUpdate(event);
   }
 
   /// Logs the set of observables an [Observer] tracked during a build.
@@ -188,29 +194,15 @@ abstract final class ObserverLogger {
     int listenerCount, {
     bool dispatch = true,
   }) {
-    if (dispatch) {
-      _dispatch(
-        (ObserverInspector i) => i.onDispose(
-          ObservableDisposeEvent(
-            label,
-            listenerCount,
-            stackTrace: _maybeStackTrace(),
-          ),
-        ),
-      );
-    }
-    if (!ObserverConfig.logging || !_allowed(ObserverLogLevel.lifecycle)) {
-      return;
-    }
-    debugPrint(
-      _prefixed(
-        _paint(
-          _AnsiColor.gray,
-          '✖ $label descartado ($listenerCount '
-          'listeners removidos)',
-        ),
-      ),
+    final ObservableDisposeEvent event = ObservableDisposeEvent(
+      label,
+      listenerCount,
+      stackTrace: _maybeStackTrace(),
     );
+    if (dispatch) {
+      _dispatch((ObserverInspector i) => i.onDispose(event));
+    }
+    _console.onDispose(event);
   }
 
   /// Checks whether a write/mutation is happening while an [Observer] (or
@@ -326,26 +318,14 @@ abstract final class ObserverLogger {
   ///
   /// Ver [created] para o significado de [dispatch].
   static void warn(String message, {String? suggestion, bool dispatch = true}) {
-    if (dispatch) {
-      _dispatch(
-        (ObserverInspector i) => i.onWarning(
-          WarningEvent(
-            message,
-            suggestion: suggestion,
-            stackTrace: _maybeStackTrace(),
-          ),
-        ),
-      );
-    }
-    if (!ObserverConfig.warnings) {
-      return;
-    }
-    final StringBuffer buffer = StringBuffer(
-      _prefixed(_paint(_AnsiColor.yellowBold, '⚠ $message')),
+    final WarningEvent event = WarningEvent(
+      message,
+      suggestion: suggestion,
+      stackTrace: _maybeStackTrace(),
     );
-    if (suggestion != null) {
-      buffer.write('\n    ${_paint(_AnsiColor.yellowBold, suggestion)}');
+    if (dispatch) {
+      _dispatch((ObserverInspector i) => i.onWarning(event));
     }
-    debugPrint(buffer.toString());
+    _console.onWarning(event);
   }
 }

@@ -27,6 +27,7 @@ export 'src/core/untracked.dart';
 export 'src/effects/effect.dart';
 export 'src/errors/observer_cycle_error.dart';
 export 'src/errors/observer_error.dart';
+export 'src/logging/console_inspector.dart';
 export 'src/logging/observer_config.dart';
 export 'src/observable/async/async_state.dart';
 export 'src/observable/async/observable_future.dart';
