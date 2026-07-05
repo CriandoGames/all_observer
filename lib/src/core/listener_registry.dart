@@ -1,10 +1,16 @@
 import 'dart:collection' show LinkedHashSet;
 
-import 'package:flutter/foundation.dart';
-
-import '../logging/observer_logger.dart';
+import '../errors/observer_cycle_error.dart';
 import 'batch_scope.dart';
+import 'core_error_reporting.dart';
 import 'typedefs.dart';
+
+// Note: this file intentionally does not import `dart:ui` or
+// `package:flutter/foundation.dart` for `ObserverVoidCallback` — `dart:ui` is part
+// of the Flutter *engine* embedding, not the plain Dart SDK, so it is not
+// available in a CLI/server context. `ObserverObserverVoidCallback` (from
+// typedefs.dart) is a structurally identical `void Function()` alias that
+// keeps this file usable from `package:all_observer/core.dart` alone.
 
 /// Maximum notification depth allowed before [ListenerRegistry.notifyAll]
 /// aborts with a descriptive error instead of overflowing the call stack.
@@ -39,7 +45,8 @@ class ListenerRegistry {
   // de inserção para iteração/snapshot, e deduplicando listeners
   // nativamente (contrato central de um `Set`) em vez de uma checagem
   // explícita de `contains` antes de inserir.
-  final LinkedHashSet<VoidCallback> _listeners = LinkedHashSet<VoidCallback>();
+  final LinkedHashSet<ObserverVoidCallback> _listeners =
+      LinkedHashSet<ObserverVoidCallback>();
 
   /// Number of listeners currently attached.
   ///
@@ -56,7 +63,7 @@ class ListenerRegistry {
   ///
   /// Adiciona [listener] se ele ainda não estiver presente e retorna um
   /// [Disposer] que o remove.
-  Disposer add(VoidCallback listener) {
+  Disposer add(ObserverVoidCallback listener) {
     _listeners.add(listener);
     return () => remove(listener);
   }
@@ -64,12 +71,12 @@ class ListenerRegistry {
   /// Whether [listener] is currently registered.
   ///
   /// Se [listener] está atualmente registrado.
-  bool contains(VoidCallback listener) => _listeners.contains(listener);
+  bool contains(ObserverVoidCallback listener) => _listeners.contains(listener);
 
   /// Removes [listener] if present.
   ///
   /// Remove [listener] se presente.
-  void remove(VoidCallback listener) {
+  void remove(ObserverVoidCallback listener) {
     _listeners.remove(listener);
   }
 
@@ -79,14 +86,14 @@ class ListenerRegistry {
   /// the *next* notification, never the current one).
   ///
   /// Each listener runs inside its own `try`/`catch`: an exception thrown by
-  /// one listener is reported via [FlutterError.reportError] (library
+  /// one listener is reported via `CoreErrorReporting.report` (library
   /// `all_observer`) and does not prevent the remaining listeners of this
   /// same notification from running.
   ///
   /// A global notification-depth counter guards against update cycles (a
   /// listener of A writing to B, whose listener writes back to A, and so
   /// on): once [kMaxNotificationDepth] nested notifications are reached,
-  /// this call stops recursing and reports a [FlutterError] instead of
+  /// this call stops recursing and reports an [ObserverCycleError] instead of
   /// overflowing the stack.
   ///
   /// Notifica uma cópia dos listeners atuais, de forma que mutações feitas
@@ -95,7 +102,7 @@ class ListenerRegistry {
   /// a *próxima* notificação, nunca a atual).
   ///
   /// Cada listener roda dentro do seu próprio `try`/`catch`: uma exceção
-  /// lançada por um listener é reportada via [FlutterError.reportError]
+  /// lançada por um listener é reportada via `CoreErrorReporting.report`
   /// (biblioteca `all_observer`) e não impede que os demais listeners desta
   /// mesma notificação rodem.
   ///
@@ -103,13 +110,13 @@ class ListenerRegistry {
   /// ciclos de atualização (um listener de A escrevendo em B, cujo listener
   /// escreve de volta em A, e assim por diante): ao atingir
   /// [kMaxNotificationDepth] notificações aninhadas, esta chamada para de
-  /// recursar e reporta um [FlutterError] em vez de estourar a pilha.
+  /// recursar e reporta um [ObserverCycleError] em vez de estourar a pilha.
   void notifyAll() {
     if (_listeners.isEmpty) {
       return;
     }
     if (_notificationDepth >= kMaxNotificationDepth) {
-      final FlutterError cycleError = FlutterError(
+      final ObserverCycleError cycleError = ObserverCycleError(
         'all_observer: possible update cycle detected. Notification '
         'depth exceeded $kMaxNotificationDepth (a listener of one '
         'observable writes to another whose listener writes back, '
@@ -117,42 +124,33 @@ class ListenerRegistry {
         'the call stack. / Possível ciclo de atualização detectado: '
         'profundidade de notificação excedeu $kMaxNotificationDepth.',
       );
-      ObserverLogger.caughtException(
-        'possível ciclo de atualização detectado',
+      CoreErrorReporting.report(
         cycleError,
-      );
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: cycleError,
-          library: 'all_observer',
-          context: ErrorDescription('while notifying observable listeners'),
-        ),
+        StackTrace.current,
+        library: 'all_observer',
+        context:
+            'possível ciclo de atualização detectado — while '
+            'notifying observable listeners',
       );
       return;
     }
-    final List<VoidCallback> snapshot = List<VoidCallback>.of(
+    final List<ObserverVoidCallback> snapshot = List<ObserverVoidCallback>.of(
       _listeners,
       growable: false,
     );
     _notificationDepth++;
     try {
-      for (final VoidCallback listener in snapshot) {
+      for (final ObserverVoidCallback listener in snapshot) {
         try {
           listener();
         } catch (error, stackTrace) {
-          ObserverLogger.caughtException(
-            'exceção isolada em um listener',
+          CoreErrorReporting.report(
             error,
-          );
-          FlutterError.reportError(
-            FlutterErrorDetails(
-              exception: error,
-              stack: stackTrace,
-              library: 'all_observer',
-              context: ErrorDescription(
-                'while notifying an observable listener',
-              ),
-            ),
+            stackTrace,
+            library: 'all_observer',
+            context:
+                'exceção isolada em um listener — while notifying an '
+                'observable listener',
           );
         }
       }
@@ -180,7 +178,7 @@ class ListenerRegistry {
   ///
   /// **Wave-limit safety net:** the micro-batch relies on the `kMaxFlushWaves`
   /// guard added in v1.1.1 (T1.1). Any in-batch cycle now terminates with a
-  /// descriptive `FlutterError` instead of looping forever.
+  /// descriptive `ObserverCycleError` instead of looping forever.
   ///
   /// Enfileira este registro para notificação via o flush de batch em duas
   /// fases, esteja ou não um `Observable.batch()` explícito ativo.
@@ -202,7 +200,7 @@ class ListenerRegistry {
   ///
   /// **Rede de segurança de ondas:** o micro-batch depende do guard
   /// `kMaxFlushWaves` adicionado na v1.1.1 (T1.1). Qualquer ciclo dentro
-  /// do batch agora termina com um `FlutterError` descritivo em vez de
+  /// do batch agora termina com um `ObserverCycleError` descritivo em vez de
   /// entrar em loop infinito.
   void notifyOrQueue() {
     if (BatchScope.isActive) {

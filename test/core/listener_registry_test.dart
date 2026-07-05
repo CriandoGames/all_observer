@@ -1,6 +1,36 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:all_observer/src/core/core_error_reporting.dart';
 import 'package:all_observer/src/core/listener_registry.dart';
+import 'package:all_observer/src/errors/observer_cycle_error.dart';
+
+/// `ListenerRegistry` is a pure-Dart core primitive: it reports exceptions
+/// it catches and isolates via `CoreErrorReporting.report` instead of
+/// calling `FlutterError.reportError` directly (see `ARCHITECTURE.md`,
+/// ADR about `core.dart`). Normal usage through `Observable`/`Computed`
+/// installs a `FlutterError`-forwarding reporter automatically the first
+/// time a write happens; these tests exercise `ListenerRegistry` directly,
+/// bypassing that, so they install the same forwarding reporter themselves
+/// — exactly what a pure-Dart consumer wiring their own error reporting
+/// would do.
+void _installFlutterErrorForwarding() {
+  CoreErrorReporting.reporter =
+      (
+        Object error,
+        StackTrace stackTrace, {
+        required String library,
+        required String context,
+      }) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: library,
+            context: ErrorDescription(context),
+          ),
+        );
+      };
+}
 
 /// Temporarily replaces [FlutterError.onError] with a capturing handler for
 /// the duration of [run], restoring the previous handler afterwards (even
@@ -29,6 +59,9 @@ List<FlutterErrorDetails> captureReportedErrors(void Function() run) {
 }
 
 void main() {
+  setUp(_installFlutterErrorForwarding);
+  tearDown(() => CoreErrorReporting.reporter = null);
+
   group('ListenerRegistry', () {
     test('add registers a listener and notifyAll invokes it', () {
       final ListenerRegistry registry = ListenerRegistry();
@@ -131,7 +164,7 @@ void main() {
       expect(aRuns, lessThanOrEqualTo(kMaxNotificationDepth + 1));
       expect(bRuns, lessThanOrEqualTo(kMaxNotificationDepth + 1));
       expect(reported, hasLength(1));
-      expect(reported.single.exception, isA<FlutterError>());
+      expect(reported.single.exception, isA<ObserverCycleError>());
     });
   });
 }

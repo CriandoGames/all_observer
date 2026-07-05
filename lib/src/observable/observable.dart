@@ -340,6 +340,13 @@ class Observable<T> implements ValueListenable<T> {
   /// [value].
   @protected
   void notifyListeners() {
+    // Belt-and-suspenders alongside the identical install in
+    // ObserverLogger.checkWriteDuringBuild: that one covers every `value =`
+    // write and collection mutation, but `refresh()` calls straight into
+    // this method without going through either of those first — so this
+    // covers the "only ever called refresh(), never a plain write" case
+    // too. Both are idempotent (`??=`).
+    ObserverLogger.ensureErrorReporterInstalled();
     _registry.notifyOrQueue();
   }
 

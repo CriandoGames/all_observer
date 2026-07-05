@@ -1,6 +1,5 @@
-import 'package:flutter/foundation.dart';
-
-import '../logging/observer_logger.dart';
+import '../errors/observer_cycle_error.dart';
+import 'core_error_reporting.dart';
 import 'listener_registry.dart';
 
 /// Maximum number of flush waves (full drain cycles of `_pending` +
@@ -187,7 +186,7 @@ abstract final class BatchScope {
         // batch assumem após o batch transformá-los de chamadas recursivas
         // em re-notificações enfileiradas.
         if (waves >= kMaxFlushWaves) {
-          final FlutterError waveError = FlutterError(
+          final ObserverCycleError waveError = ObserverCycleError(
             'all_observer: possível ciclo de atualização dentro de um '
             'batch detectado. O número de ondas de flush excedeu '
             '$kMaxFlushWaves (um listener de um observável escreve em '
@@ -197,18 +196,14 @@ abstract final class BatchScope {
             'detected: flush wave count exceeded $kMaxFlushWaves. '
             'Aborting flush and discarding remaining notifications.',
           );
-          ObserverLogger.caughtException(
-            'ciclo de atualização dentro de batch — ondas excedidas',
+          CoreErrorReporting.report(
             waveError,
-          );
-          FlutterError.reportError(
-            FlutterErrorDetails(
-              exception: waveError,
-              library: 'all_observer',
-              context: ErrorDescription(
-                'while flushing a batch — possible in-batch update cycle',
-              ),
-            ),
+            StackTrace.current,
+            library: 'all_observer',
+            context:
+                'ciclo de atualização dentro de batch — ondas '
+                'excedidas — while flushing a batch — possible in-batch '
+                'update cycle',
           );
           _pending.clear();
           _dirtyFlushCallbacks.clear();
@@ -247,20 +242,14 @@ abstract final class BatchScope {
             try {
               callback();
             } catch (error, stackTrace) {
-              ObserverLogger.caughtException(
-                'exceção isolada em um recompute de Computed adiado por '
-                'batch',
+              CoreErrorReporting.report(
                 error,
-              );
-              FlutterError.reportError(
-                FlutterErrorDetails(
-                  exception: error,
-                  stack: stackTrace,
-                  library: 'all_observer',
-                  context: ErrorDescription(
-                    'while flushing a batch-deferred Computed recompute',
-                  ),
-                ),
+                stackTrace,
+                library: 'all_observer',
+                context:
+                    'exceção isolada em um recompute de Computed '
+                    'adiado por batch — while flushing a batch-deferred '
+                    'Computed recompute',
               );
             }
           }

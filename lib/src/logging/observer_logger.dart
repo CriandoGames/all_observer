@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../core/core_error_reporting.dart';
 import '../core/dependency_tracker.dart';
 import '../core/observer_inspector.dart';
 import '../errors/observer_error.dart';
@@ -198,7 +199,47 @@ abstract final class ObserverLogger {
   /// [Observable.value] quanto por todo membro mutante das coleções
   /// reativas, então a checagem cobre tanto a reatribuição de `value =`
   /// quanto mutações de coleção (`add`, `addAll`, `clear`, ...).
+  /// Installs the Flutter-side error reporter the first time it is called
+  /// (idempotent — subsequent calls are a no-op), so that
+  /// `CoreErrorReporting.report` calls made by the pure-Dart
+  /// `ListenerRegistry`/`BatchScope` (cycle detection, isolated listener
+  /// exceptions) still surface via `FlutterError.reportError` exactly as
+  /// before this hook existed. Called from every place a notification can
+  /// originate: [checkWriteDuringBuild] (every `value =` write and
+  /// collection mutation) and `Observable.notifyListeners` (also covers a
+  /// bare `refresh()` call that never went through a `value =` write).
+  ///
+  /// Instala o reporter do lado Flutter na primeira chamada (idempotente —
+  /// chamadas seguintes são um no-op), para que chamadas de
+  /// `CoreErrorReporting.report` feitas pelo `ListenerRegistry`/`BatchScope`
+  /// puramente Dart (detecção de ciclo, exceções isoladas de listener) ainda
+  /// cheguem via `FlutterError.reportError` exatamente como antes deste
+  /// gancho existir. Chamado em todo lugar de onde uma notificação pode se
+  /// originar: [checkWriteDuringBuild] (toda escrita `value =` e mutação de
+  /// coleção) e `Observable.notifyListeners` (cobre também uma chamada
+  /// avulsa a `refresh()` que nunca passou por uma escrita `value =`).
+  static void ensureErrorReporterInstalled() {
+    CoreErrorReporting.reporter ??=
+        (
+          Object error,
+          StackTrace stackTrace, {
+          required String library,
+          required String context,
+        }) {
+          caughtException(context, error);
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: error,
+              stack: stackTrace,
+              library: library,
+              context: ErrorDescription(context),
+            ),
+          );
+        };
+  }
+
   static void checkWriteDuringBuild(String label) {
+    ensureErrorReporterInstalled();
     if (DependencyTracker.current == null) {
       return;
     }

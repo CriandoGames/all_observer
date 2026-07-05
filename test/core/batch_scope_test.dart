@@ -1,7 +1,35 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:all_observer/src/core/batch_scope.dart';
+import 'package:all_observer/src/core/core_error_reporting.dart';
+import 'package:all_observer/src/errors/observer_cycle_error.dart';
 import 'package:all_observer/src/observable/observable.dart';
+
+/// See the identical helper/doc in `test/core/listener_registry_test.dart`:
+/// `BatchScope` is a pure-Dart core primitive and reports via
+/// `CoreErrorReporting.report` rather than `FlutterError.reportError`
+/// directly. `Observable`'s setter installs a forwarding reporter
+/// automatically on first use — which most tests below exercise via
+/// `Observable.batch`/`observable.value =` — but this pins it explicitly so
+/// the test does not depend on incidental ordering.
+void _installFlutterErrorForwarding() {
+  CoreErrorReporting.reporter =
+      (
+        Object error,
+        StackTrace stackTrace, {
+        required String library,
+        required String context,
+      }) {
+        FlutterError.reportError(
+          FlutterErrorDetails(
+            exception: error,
+            stack: stackTrace,
+            library: library,
+            context: ErrorDescription(context),
+          ),
+        );
+      };
+}
 
 /// Captures [FlutterError.reportError] calls for the duration of [run].
 /// Needed because flutter_test's default handler fails the test on any
@@ -23,6 +51,9 @@ List<FlutterErrorDetails> _captureErrors(void Function() run) {
 }
 
 void main() {
+  setUp(_installFlutterErrorForwarding);
+  tearDown(() => CoreErrorReporting.reporter = null);
+
   group('BatchScope flush wave limit (T1.1)', () {
     test('mutual cycle via listen inside batch terminates, reports error, '
         'does not hang', () {
@@ -58,7 +89,7 @@ void main() {
 
       // The wave limit fired and was reported exactly once.
       expect(reported, hasLength(1));
-      expect(reported.single.exception, isA<FlutterError>());
+      expect(reported.single.exception, isA<ObserverCycleError>());
       expect(
         reported.single.exception.toString(),
         contains('Possible in-batch update cycle'),
@@ -114,17 +145,19 @@ void main() {
       // iterative (wave-based) and is caught by the kMaxFlushWaves guard,
       // rather than the kMaxNotificationDepth depth guard as in v1.1.x.
       // Either way: the write returns normally, exactly one error is reported,
-      // and it is a FlutterError.
+      // and its exception is an ObserverCycleError (still forwarded to
+      // FlutterError.reportError by the installed CoreErrorReporting hook).
       //
       // Com o auto-batch da v1.2.0 (micro-batch), uma escrita avulsa fora de
       // um batch explícito passa por um micro-batch — então o ciclo se torna
       // iterativo (baseado em ondas) e é capturado pelo guard kMaxFlushWaves,
       // em vez do guard de profundidade kMaxNotificationDepth como na v1.1.x.
       // Em todo caso: a escrita retorna normalmente, exatamente um erro é
-      // reportado e é um FlutterError.
+      // reportado e sua exceção é um ObserverCycleError.
       expect(reported, hasLength(greaterThanOrEqualTo(1)));
-      expect(reported.first.exception, isA<FlutterError>());
-      // Both guards produce a FlutterError — just check for the common part.
+      expect(reported.first.exception, isA<ObserverCycleError>());
+      // Both guards produce an ObserverCycleError — just check the common
+      // part.
       expect(reported.first.exception.toString(), contains('all_observer'));
     });
 
