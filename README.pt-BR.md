@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 <a href="https://pub.dev/packages/all_observer/score"><img src="https://img.shields.io/pub/points/all_observer?label=pub%20points" alt="pub points"></a>
- <img src="https://img.shields.io/badge/testes-168-brightgreen" alt="168 testes"> <!-- atualizar ao adicionar testes -->
+ <img src="https://img.shields.io/badge/testes-225-brightgreen" alt="225 testes"> <!-- atualizar ao adicionar testes -->
 
 
 Estado reativo para Flutter, sem dependências. Valores `Observable` mais um
@@ -215,6 +215,154 @@ resolver, o resultado da mais antiga (sucesso ou erro) é descartado quando
 chegar, e qualquer resultado ainda em andamento também é descartado se
 `close()` tiver sido chamado nesse meio tempo.
 
+## Além do `Observer`: effects, streams, inspeção e helpers de lifecycle
+
+Um conjunto de blocos menores e independentes — cada um opcional, nenhum
+muda o grafo reativo central.
+
+### Reatividade autônoma com `effect()`
+
+```dart
+final dispose = effect(() {
+  print('contador agora é ${count.value}');
+});
+// ...
+dispose(); // para de reagir
+```
+
+`effect()` roda imediatamente e de novo sempre que qualquer observável que
+ele lê mudar — o mesmo auto-rastreamento do `Observer`, sem um widget. Útil
+fora da árvore de widgets (uma classe controller, um listener em segundo
+plano).
+
+### Escapatórias: `untracked()`, `peek()`, `previousValue`
+
+```dart
+final resultado = untracked(() => a.value + b.value); // lê sem rastrear
+final atual = contador.peek(); // lê sem rastrear, forma mais curta
+final anterior = contador.previousValue; // valor logo antes da última mudança
+```
+
+`untracked()` lê observáveis dentro do callback sem registrá-los como
+dependências de qualquer `Observer`/`Computed`/`effect()` que esteja
+rastreando no momento — útil para uma leitura avulsa que não deveria causar
+rebuild por conta própria. `Observable.peek()` é açúcar sintático para a
+mesma coisa em um único valor; `previousValue` olha para o valor de antes
+da atualização mais recente, sem nenhuma configuração extra para habilitar.
+
+### Observabilidade plugável com `ObserverInspector`
+
+```dart
+final recorder = RecordingInspector();
+ObserverConfig.inspectors.add(recorder);
+// ... depois
+for (final event in recorder.events) {
+  print(event); // ObservableCreateEvent, ObservableUpdateEvent, ...
+}
+```
+
+Todo evento de criação/atualização/descarte/rastreamento/warning/execução
+-de-effect é exposto através da interface `ObserverInspector`, não apenas
+impresso no console. O clássico log colorido no terminal é ele mesmo uma
+implementação formal — `ConsoleInspector` — registrada internamente por
+padrão; `RecordingInspector` vem incluído como uma trilha de auditoria em
+memória. Escreva o seu próprio para encaminhar eventos a analytics, um sink
+de log próprio, ou um overlay de debug — uma exceção lançada por um
+inspector nunca bloqueia os demais.
+
+### `ObservableStream`, o equivalente em `Stream` do `ObservableFuture`
+
+```dart
+final ticks = ObservableStream<int>(
+  () => Stream.periodic(const Duration(seconds: 1), (i) => i),
+);
+Observer(() => ticks.value.when(
+  loading: (previousData) => const CircularProgressIndicator(),
+  data: (n) => Text('$n'),
+  error: (error, stackTrace) => Text('Erro: $error'),
+));
+```
+
+Mesmo contrato de `AsyncState`/carregando-dados-erro do `ObservableFuture`,
+conduzido por uma `Stream` no lugar: todo evento vira `AsyncData`, um erro
+da stream vira `AsyncError`, e `refresh()` cancela a assinatura atual e
+inicia uma nova — seguro contra corrida pelo mesmo contador de geração.
+
+### `ObserverStateMixin`, para efeitos colaterais ligados ao tempo de vida de um `State`
+
+```dart
+class _MyPageState extends State<MyPage> with ObserverStateMixin {
+  @override
+  void initState() {
+    super.initState();
+    autorun(() {
+      if (session.value.isExpired) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    });
+  }
+}
+```
+
+`autorun` é um `effect()` descartado automaticamente com o `State`;
+`autoDispose` aceita qualquer `Disposer` (o `.cancel` de uma subscrição, o
+`.close` de um `Computed`, ...). Isto é para efeitos colaterais que não
+pertencem ao `build()` — navegação, snackbars, conduzir um
+`AnimationController` — não um substituto do `Observer`.
+
+### Persistência opcional com `ObservableStore`
+
+```dart
+final theme = Observable<String>('light');
+final stop = theme.persistWith(minhaThemeStore); // minhaThemeStore: ObservableStore<String>
+// ...
+stop(); // para de persistir; `theme` continua funcionando normalmente
+```
+
+`ObservableStore<T>` é uma interface de três métodos (`read`/`write`/
+`delete`) sem nenhuma implementação incluída aqui — o `all_observer`
+permanece livre de dependências. Um pacote ponte (ex.:
+[`all_box`](https://pub.dev/packages/all_box)) pode implementá-la contra
+armazenamento real; `persistWith` restaura uma vez na vinculação e escreve
+de volta a cada mudança subsequente.
+
+### Desfazer/refazer limitado com `ObservableHistory`
+
+```dart
+final texto = Observable<String>('');
+final history = texto.withHistory(limit: 50);
+texto.value = 'olá';
+texto.value = 'olá mundo';
+history.undo(); // texto.value == 'olá'
+history.undo(); // texto.value == ''
+history.redo(); // texto.value == 'olá'
+history.dispose();
+```
+
+Registra toda mudança de valor, ignora mudanças feitas pelo próprio
+`undo()`/`redo()` (para que refazer depois de desfazer restaure o valor
+exato, em vez de criar um novo ramo), e descarta as entradas mais antigas
+assim que `limit` é excedido.
+
+### `package:all_observer/core.dart` — o motor puro-Dart, sem Flutter
+
+```dart
+import 'package:all_observer/core.dart';
+
+final contador = CoreObservable<int>(0);
+contador.addListener(() => print('agora $contador.value'));
+contador.value = 1;
+```
+
+O rastreador de dependências, o registro de listeners, o motor de batch/
+flush e os tipos de observabilidade têm **zero import de
+`package:flutter`** e são re-exportados por este ponto de entrada separado
+— utilizável em uma ferramenta de linha de comando, um servidor, ou um
+isolate em segundo plano, não só em um app Flutter. `Observable`/`Computed`
+(de `all_observer.dart`) são wrappers finos de `ValueListenable` + logging
+no console sobre `CoreObservable`/`CoreComputed` — mesmo motor, mesmo
+comportamento, Flutter adicionado por cima.
+
 ## Rebuilds mais granulares com `Observer.withChild`
 
 ```dart
@@ -349,7 +497,13 @@ com um modo estrito opcional para times que querem falhas duras em CI.
 
 - `ObservableList`, `ObservableMap`, `ObservableSet`: coleções reativas; ler qualquer membro rastreia, mutar qualquer membro notifica exatamente uma vez por chamada (operações em lote como `addAll`/`removeWhere`/`retainWhere` nunca notificam por elemento).
 - `Computed<T>`: valores derivados preguiçosos e memoizados, construídos sobre o mesmo rastreador de dependências do `Observer`, com `equals` customizável e mitigação do glitch do diamante ciente de batch.
-- `ObservableFuture<T>` / `AsyncState<T>`: estado assíncrono de carregando/dados/erro, seguro contra corrida, construído sobre `Observable`.
+- `ObservableFuture<T>` / `ObservableStream<T>` / `AsyncState<T>` (com alias `AsyncValue<T>`): estado assíncrono de carregando/dados/erro, seguro contra corrida, construído sobre `Observable`, conduzido por uma `Future` ou uma `Stream`.
+- `effect()` / `untracked()` / `Observable.peek()` / `Observable.previousValue`: reatividade autônoma e escapatórias de rastreamento.
+- `ObserverInspector` / `ConsoleInspector` / `RecordingInspector`: observabilidade plugável para todo evento de lifecycle/atualização/warning.
+- `ObserverStateMixin`: `effect()`s e subscrições manuais descartados automaticamente, ligados ao tempo de vida de um `State`.
+- `ObservableStore<T>` / `Observable.persistWith`: ponto de integração opcional para persistência (ex.: `all_box`), sem adicionar dependência.
+- `ObservableHistory<T>` / `Observable.withHistory`: desfazer/refazer limitado para qualquer `Observable`.
+- `package:all_observer/core.dart`: o motor puro-Dart (`CoreObservable`, `CoreComputed`, `DependencyTracker`, ...), zero import de `package:flutter`, utilizável fora do Flutter.
 - `Observable.batch`: agrupa múltiplas escritas em uma única notificação por observável alterado, para assinantes manuais.
 - `Observer.withChild`: reconstrói apenas a parte de uma subárvore que pertence ao builder, reaproveitando um `child` estático entre rebuilds.
 - `Observable.select`: açúcar sintático para um `Computed` mais estreito derivado de um único `Observable`.
@@ -357,6 +511,50 @@ com um modo estrito opcional para times que querem falhas duras em CI.
 - `ever`, `once`, `debounce`, `interval`: workers para efeitos colaterais disparados por mudanças em observáveis.
 - Um ciclo de atualização síncrono (o listener de A escreve em B, o de B escreve em A, ...) é interrompido após uma profundidade de notificação limitada, com um erro descritivo, em vez de um stack overflow bruto; uma exceção lançada dentro de um listener nunca impede que os demais listeners do mesmo observável rodem.
 - Veja `/example` para uma demonstração executável (contador, lista reativa, worker, alternador de logs de debug), e `/benchmark` para microbenchmarks manuais baseados em Stopwatch.
+
+## Como o `all_observer` se compara
+
+Uma comparação factual, sem tom de marketing, contra outras abordagens de
+reatividade em Flutter/Dart — o que cada uma exige que o `all_observer`
+não exige, e vice-versa. Nenhuma delas é "ruim"; cada uma resolve para
+prioridades diferentes.
+
+| | `all_observer` | GetX | Riverpod | MobX | flutter_hooks |
+|---|---|---|---|---|---|
+| Dependências externas | **Zero** | Zero (ela mesma é tudo-em-um) | `riverpod`, geralmente `flutter_riverpod`/`riverpod_generator` | `mobx`, `mobx_codegen`, `build_runner` | `flutter_hooks` |
+| Geração de código | Nenhuma | Nenhuma | Opcional (`riverpod_generator`), comum na prática | Obrigatória (`build_runner`) para `@observable`/`@computed`/`@action` | Nenhuma |
+| Escopo | Só valores reativos + rebuild de widget | Estado + rotas + DI + snackbars/diálogos (um framework completo) | Estado + DI (grafo de providers), sem helpers de rota/UI | Valores reativos + actions/reactions, sem DI/rotas | Estado/lifecycle composável local ao widget, sem store entre widgets |
+| Rastreamento de dependências | Automático (ler `.value` durante build/`effect()`/`Computed`) | Automático, via `Obx`/`GetX` lendo `.value`/`.obs` | Automático, via `ref.watch` dentro de um `Provider`/`Notifier` | Automático, via `Observer`/reactions lendo campos `@observable` | N/A (hooks são locais ao widget, não um grafo de dependências) |
+| Glitches em dependências de diamante | Prevenidos por design (`ADR-0001`/`ADR-0002` no `ARCHITECTURE.md`) | Não é uma garantia documentada | N/A (providers não formam um grafo estilo `Computed` da mesma forma) | Prevenidos pelo próprio núcleo reativo do MobX | N/A |
+| Interoperabilidade com `ValueListenable` | Direta — `Observable<T>` *é* um | Não | Não | Não | Não |
+| Escapatórias | `untracked()`, `.peek()`, `.previousValue` | Leituras de `.value` fora de `Obx` já não rastreiam | `ref.read` (leitura não rastreada) | `mobx.untracked` | N/A |
+| Observabilidade | `ObserverInspector` plugável (`ConsoleInspector`, `RecordingInspector`, ou o seu próprio) | Logging via `Get.log` | `ProviderObserver` | Dev-tools do MobX / Spy API | N/A |
+| Utilizável fora do Flutter | Sim — `package:all_observer/core.dart`, zero import de Flutter | Não | Sim (o núcleo do `riverpod` tem uma variante não-Flutter) | Sim (o núcleo do `mobx` é puro Dart) | Não (só Flutter, por design) |
+| Comportamento em caso de mau uso | Warning amigável por padrão, `strictMode` opcional lança exceção | Varia pela superfície de API | Grafo de providers verificado em tempo de compilação pega algumas classes de erro mais cedo | Warnings em tempo de execução no modo dev | Tempo de compilação (regras de hook impostas por lint) |
+
+### Por que escolher o `all_observer`
+
+Use quando você quer estado reativo e nada mais: nenhum container de DI
+para aprender, nenhuma convenção de rotas para adotar, nenhum gerador de
+código no seu pipeline de build, e nenhum risco de uma dependência
+transitiva ficar desatualizada ou sem manutenção, porque não existe
+nenhuma. `final count = 0.obs;` mais `Observer(() => Text('${count.value}'))`
+é o modelo mental inteiro — a mesma primitiva escala de um contador único
+até um grafo de `Computed`, estado assíncrono seguro contra corrida, e
+observabilidade plugável, sem trocar de vocabulário no meio do caminho.
+Compõe com (em vez de substituir) as rotas/DI do GetX, o grafo de
+providers do Riverpod, ou uma classe controller feita à mão, já que o
+`all_observer` não tem opinião sobre onde o estado *mora* — só sobre como
+ele *notifica*.
+
+Use outra coisa quando você precisar especificamente do que aquela outra
+coisa faz de melhor: o GetX tudo-em-um de rotas+DI+estado se você quer um
+único framework para tudo; o Riverpod se você quer um grafo de DI
+verificado em tempo de compilação e não se importa com a cerimônia de
+declarar providers; o MobX se você já está investido no vocabulário de
+actions/reactions dele e no passo de codegen; o `flutter_hooks` se seu
+estado é genuinamente local ao widget e você quer composição estilo
+`useState`/`useEffect` em vez de um valor autônomo.
 
 ## Migrando de outras soluções de estado reativo
 

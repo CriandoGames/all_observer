@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 <a href="https://pub.dev/packages/all_observer/score"><img src="https://img.shields.io/pub/points/all_observer?label=pub%20points" alt="pub points"></a>
- <img src="https://img.shields.io/badge/testes-168-brightgreen" alt="168 testes"> <!-- atualizar ao adicionar testes -->
+ <img src="https://img.shields.io/badge/tests-225-brightgreen" alt="225 tests"> <!-- update when adding tests -->
 
 Reactive state for Flutter, zero dependencies. `Observable` values plus an
 auto-tracking `Observer` widget — a small, safe, dependency-free core for
@@ -208,6 +208,150 @@ older one resolves, the older result (success or error) is discarded when
 it eventually arrives, and any in-flight result is also discarded if
 `close()` was called meanwhile.
 
+## Beyond `Observer`: effects, streams, inspection, and lifecycle helpers
+
+A set of smaller, independent building blocks — each optional, none
+changing the core reactive graph.
+
+### Standalone reactivity with `effect()`
+
+```dart
+final dispose = effect(() {
+  print('count is now ${count.value}');
+});
+// ...
+dispose(); // stop reacting
+```
+
+`effect()` runs immediately and again whenever any observable it reads
+changes — the same auto-tracking `Observer` uses, without a widget. Useful
+outside the widget tree (a controller class, a background listener).
+
+### Escape hatches: `untracked()`, `peek()`, `previousValue`
+
+```dart
+final result = untracked(() => a.value + b.value); // read without tracking
+final current = counter.peek(); // read without tracking, shorter form
+final before = counter.previousValue; // value right before the last change
+```
+
+`untracked()` reads observables inside its callback without registering
+them as dependencies of whatever `Observer`/`Computed`/`effect()` is
+currently tracking — useful for a one-off read that shouldn't cause a
+rebuild on its own. `Observable.peek()` is sugar for the same thing on a
+single value; `previousValue` looks at the value from before the most
+recent update, with no extra bookkeeping to opt into.
+
+### Pluggable observability with `ObserverInspector`
+
+```dart
+final recorder = RecordingInspector();
+ObserverConfig.inspectors.add(recorder);
+// ... later
+for (final event in recorder.events) {
+  print(event); // ObservableCreateEvent, ObservableUpdateEvent, ...
+}
+```
+
+Every creation/update/dispose/tracking/warning/effect-run event is exposed
+through the `ObserverInspector` interface, not just printed to the console.
+The classic colored terminal output is itself a formal implementation —
+`ConsoleInspector` — registered internally by default; `RecordingInspector`
+ships as an in-memory audit trail. Write your own to forward events to
+analytics, a custom log sink, or a debug overlay — an exception thrown by
+one inspector never blocks the others.
+
+### `ObservableStream`, the `Stream` counterpart of `ObservableFuture`
+
+```dart
+final ticks = ObservableStream<int>(
+  () => Stream.periodic(const Duration(seconds: 1), (i) => i),
+);
+Observer(() => ticks.value.when(
+  loading: (previousData) => const CircularProgressIndicator(),
+  data: (n) => Text('$n'),
+  error: (error, stackTrace) => Text('Error: $error'),
+));
+```
+
+Same `AsyncState`/loading-data-error contract as `ObservableFuture`, driven
+by a `Stream` instead: every event becomes `AsyncData`, a stream error
+becomes `AsyncError`, and `refresh()` cancels the current subscription and
+starts a fresh one — race-safe via the same generation-counter guard.
+
+### `ObserverStateMixin`, for side effects tied to a `State`'s lifetime
+
+```dart
+class _MyPageState extends State<MyPage> with ObserverStateMixin {
+  @override
+  void initState() {
+    super.initState();
+    autorun(() {
+      if (session.value.isExpired) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    });
+  }
+}
+```
+
+`autorun` is `effect()` auto-disposed with the `State`; `autoDispose` takes
+any `Disposer` (a subscription's `.cancel`, a `Computed`'s `.close`, ...).
+This is for side effects that don't belong in `build()` — navigation,
+snackbars, driving an `AnimationController` — not a replacement for
+`Observer`.
+
+### Optional persistence with `ObservableStore`
+
+```dart
+final theme = Observable<String>('light');
+final stop = theme.persistWith(myThemeStore); // myThemeStore: ObservableStore<String>
+// ...
+stop(); // stop persisting; `theme` keeps working normally
+```
+
+`ObservableStore<T>` is a three-method (`read`/`write`/`delete`) interface
+with no implementation shipped here — `all_observer` stays dependency-free.
+A bridge package (e.g. [`all_box`](https://pub.dev/packages/all_box)) can
+implement it against real storage; `persistWith` restores once on binding
+and writes back on every subsequent change.
+
+### Bounded undo/redo with `ObservableHistory`
+
+```dart
+final text = Observable<String>('');
+final history = text.withHistory(limit: 50);
+text.value = 'hello';
+text.value = 'hello world';
+history.undo(); // text.value == 'hello'
+history.undo(); // text.value == ''
+history.redo(); // text.value == 'hello'
+history.dispose();
+```
+
+Records every value change, skips changes made by `undo()`/`redo()`
+themselves (so redoing after undoing restores the exact value, instead of
+creating a new branch), and drops the oldest entries once `limit` is
+exceeded.
+
+### `package:all_observer/core.dart` — the pure-Dart engine, without Flutter
+
+```dart
+import 'package:all_observer/core.dart';
+
+final counter = CoreObservable<int>(0);
+counter.addListener(() => print('now ${counter.value}'));
+counter.value = 1;
+```
+
+The dependency tracker, listener registry, batch/flush engine, and
+observability types have **zero import of `package:flutter`** and are
+re-exported through this separate entry point — usable from a CLI tool, a
+server, or a background isolate, not just a Flutter app. `Observable`/
+`Computed` (from `all_observer.dart`) are thin `ValueListenable` + console-
+logging wrappers over `CoreObservable`/`CoreComputed` — same engine, same
+behavior, Flutter added on top.
+
 ## Fine-grained rebuilds with `Observer.withChild`
 
 ```dart
@@ -339,7 +483,13 @@ failures in CI.
 
 - `ObservableList`, `ObservableMap`, `ObservableSet`: reactive collections; reading any member tracks it, mutating any member notifies exactly once per call (bulk operations like `addAll`/`removeWhere`/`retainWhere` never notify per element).
 - `Computed<T>`: lazy, memoized derived values built on the same dependency tracker as `Observer`, with an optional custom `equals` and batch-aware diamond-glitch mitigation.
-- `ObservableFuture<T>` / `AsyncState<T>`: race-safe async loading/data/error state built on `Observable`.
+- `ObservableFuture<T>` / `ObservableStream<T>` / `AsyncState<T>` (aliased `AsyncValue<T>`): race-safe async loading/data/error state built on `Observable`, driven by a `Future` or a `Stream`.
+- `effect()` / `untracked()` / `Observable.peek()` / `Observable.previousValue`: standalone reactivity and tracking escape hatches.
+- `ObserverInspector` / `ConsoleInspector` / `RecordingInspector`: pluggable observability for every lifecycle/update/warning event.
+- `ObserverStateMixin`: auto-disposed `effect()`s and manual subscriptions tied to a `State`'s lifetime.
+- `ObservableStore<T>` / `Observable.persistWith`: optional persistence integration point (e.g. for `all_box`), no dependency added.
+- `ObservableHistory<T>` / `Observable.withHistory`: bounded undo/redo for any `Observable`.
+- `package:all_observer/core.dart`: the pure-Dart engine (`CoreObservable`, `CoreComputed`, `DependencyTracker`, ...), zero `package:flutter` import, usable outside Flutter.
 - `Observable.batch`: coalesces multiple writes into one notification per changed observable, for manual subscribers.
 - `Observer.withChild`: rebuilds only the builder-owned part of a subtree, reusing a static `child` across rebuilds.
 - `Observable.select`: sugar for a narrower `Computed` derived from one `Observable`.
@@ -347,6 +497,47 @@ failures in CI.
 - `ever`, `once`, `debounce`, `interval`: workers for side effects driven by observable changes.
 - A synchronous update cycle (A's listener writes B, B's listener writes A, ...) is stopped after a bounded notification depth with a descriptive error, instead of a raw stack overflow; an exception thrown inside one listener never stops the other listeners of the same observable from running.
 - See `/example` for a runnable demo (counter, reactive list, worker, debug-log toggle), and `/benchmark` for manual Stopwatch-based microbenchmarks.
+
+## How `all_observer` compares
+
+A factual, non-marketing comparison against other Flutter/Dart reactivity
+approaches — what each one requires that `all_observer` doesn't, and vice
+versa. None of these are "bad"; they solve for different priorities.
+
+| | `all_observer` | GetX | Riverpod | MobX | flutter_hooks |
+|---|---|---|---|---|---|
+| External dependencies | **Zero** | Zero (itself is all-in-one) | `riverpod`, often `flutter_riverpod`/`riverpod_generator` | `mobx`, `mobx_codegen`, `build_runner` | `flutter_hooks` |
+| Code generation | None | None | Optional (`riverpod_generator`), common in practice | Required (`build_runner`) for `@observable`/`@computed`/`@action` | None |
+| Scope | Reactive values + widget rebuilding only | State + routing + DI + snackbars/dialogs (a full framework) | State + DI (provider graph), no routing/UI helpers | Reactive values + actions/reactions, no DI/routing | Widget-local composable state/lifecycle, no cross-widget store |
+| Dependency tracking | Auto (read `.value` during build/`effect()`/`Computed`) | Auto, via `Obx`/`GetX` reading `.value`/`.obs` | Auto, via `ref.watch` inside a `Provider`/`Notifier` | Auto, via `Observer`/reactions reading `@observable` fields | N/A (hooks are widget-local, not a dependency graph) |
+| Diamond-dependency glitches | Prevented by design (`ADR-0001`/`ADR-0002` in `ARCHITECTURE.md`) | Not a documented guarantee | N/A (providers don't form a `Computed`-chain graph the same way) | Prevented by MobX's own reactive core | N/A |
+| `ValueListenable` interop | Direct — `Observable<T>` *is* one | No | No | No | No |
+| Escape hatches | `untracked()`, `.peek()`, `.previousValue` | `.value` reads outside `Obx` already untracked | `ref.read` (untracked read) | `mobx.untracked` | N/A |
+| Observability | Pluggable `ObserverInspector` (`ConsoleInspector`, `RecordingInspector`, or your own) | Console logging via `Get.log` | `ProviderObserver` | MobX dev-tools / Spy API | N/A |
+| Usable outside Flutter | Yes — `package:all_observer/core.dart`, zero Flutter import | No | Yes (`riverpod` core has a non-Flutter variant) | Yes (`mobx` core is pure Dart) | No (Flutter-only, by design) |
+| Failure mode for misuse | Friendly warning by default, opt-in `strictMode` throws | Varies by API surface | Compile-time-checked provider graph catches some classes of mistake earlier | Runtime warnings in dev mode | Compile-time (hook rules enforced by lint) |
+
+### Why choose `all_observer`
+
+Reach for it when you want reactive state and nothing else: no DI
+container to learn, no routing convention to adopt, no code generator in
+your build pipeline, and no risk of a transitive dependency going stale or
+unmaintained, because there isn't one. `final count = 0.obs;` plus
+`Observer(() => Text('${count.value}'))` is the entire mental model — the
+same primitive scales from a single counter to a `Computed` graph, race
+-safe async state, and pluggable observability, without switching
+vocabulary partway through. It composes with (rather than replaces) GetX's
+routing/DI, Riverpod's provider graph, or a hand-rolled controller class,
+since `all_observer` has no opinion on where state *lives* — only on how
+it *notifies*.
+
+Reach for something else when you specifically need what that something
+else specializes in: GetX's all-in-one routing+DI+state if you want one
+framework for everything; Riverpod if you want a compile-time-checked DI
+graph and don't mind the provider-declaration ceremony; MobX if you're
+already invested in its action/reaction vocabulary and codegen step;
+`flutter_hooks` if your state is genuinely widget-local and you want
+`useState`/`useEffect`-style composition instead of a standalone value.
 
 ## Migrating from other reactive state solutions
 

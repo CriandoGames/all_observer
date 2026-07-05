@@ -1,3 +1,32 @@
+## 1.3.0
+
+Additive release — no breaking changes, no new external dependencies.
+
+- **Core/Flutter split:** the reactive engine (`CoreObservable`,
+  `CoreComputed`, `DependencyTracker`, `ListenerRegistry`, `BatchScope`) now
+  has zero `package:flutter` import and is exposed standalone via
+  `package:all_observer/core.dart`. `Observable`/`Computed` are unchanged
+  from the outside — they now wrap this engine internally.
+- **Standalone reactivity:** `effect()`, plus escape hatches `untracked()`,
+  `Observable.peek()`, and `Observable.previousValue`.
+- **Pluggable observability:** the `ObserverInspector` interface
+  (`onCreate`/`onUpdate`/`onDispose`/`onTrack`/`onWarning`/`onEffectRun`),
+  with the classic colored console output now a formal `ConsoleInspector`
+  implementation, plus a `RecordingInspector` and
+  `ObserverConfig.inspectors`/`captureStackTraces`.
+- **Async:** `ObservableStream<T>`, the `Stream` counterpart of
+  `ObservableFuture`, with the same generation-counter race safety.
+  `AsyncValue<T>` added as an alias for `AsyncState<T>`.
+- **Lifecycle helpers:** `ObserverStateMixin` (auto-disposed `effect()`s and
+  subscriptions on a `State`), `ObservableStore`/`Observable.persistWith`
+  (optional persistence integration point, e.g. for `all_box`), and
+  `ObservableHistory`/`Observable.withHistory` (bounded undo/redo).
+- **Docs:** `ARCHITECTURE.md` expanded to cover all of the above,
+  `CONTRIBUTING.md` added, CI workflow added, and both READMEs gained a
+  comparison section against GetX/Riverpod/MobX/flutter_hooks.
+
+Tests: +57 new tests; total 225.
+
 ## 1.2.0
 
 Minor release — no breaking changes, no new external dependencies.
