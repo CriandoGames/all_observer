@@ -37,6 +37,7 @@ export 'src/core/core_computed.dart';
 export 'src/core/core_observable.dart';
 export 'src/core/dependency_tracker.dart';
 export 'src/core/listener_registry.dart';
+export 'src/core/observable_store.dart';
 export 'src/core/observer_inspector.dart';
 export 'src/core/recording_inspector.dart';
 export 'src/core/typedefs.dart';
