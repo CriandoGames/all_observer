@@ -83,6 +83,17 @@ class CoreObservable<T> {
   /// Se este observável tem atualmente ao menos um listener anexado.
   bool get hasListeners => registry.hasListeners;
 
+  /// The `equals` comparison this observable uses to decide whether a write
+  /// actually changed the value (defaults to `==`). Exposed so a wrapper
+  /// (e.g. the Flutter-facing `Observable`) can mirror this decision
+  /// without performing the mutation itself.
+  ///
+  /// A comparação `equals` que este observável usa para decidir se uma
+  /// escrita realmente mudou o valor (padrão `==`). Exposta para que um
+  /// wrapper (ex.: a `Observable` da camada Flutter) possa espelhar essa
+  /// decisão sem realizar a mutação em si.
+  bool equals(T a, T b) => _equals(a, b);
+
   /// Reads the current value, registering it as a dependency of whatever
   /// tracking context (`Observer`/`Computed`/`Effect`) is currently active.
   ///

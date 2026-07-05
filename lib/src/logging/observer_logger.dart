@@ -98,16 +98,30 @@ abstract final class ObserverLogger {
   /// Logs the creation of an observable with its initial value.
   ///
   /// Registra a criação de um observável com seu valor inicial.
-  static void created(String label, Object? initialValue) {
-    _dispatch(
-      (ObserverInspector i) => i.onCreate(
-        ObservableCreateEvent(
-          label,
-          initialValue,
-          stackTrace: _maybeStackTrace(),
+  ///
+  /// [dispatch] controls whether this also fans out an
+  /// `ObserverInspector.onCreate` event — pass `false` when the caller
+  /// already dispatched that event itself (e.g. `CoreObservable`, wrapped by
+  /// the Flutter `Observable`), to avoid every registered inspector seeing
+  /// the same logical event twice.
+  ///
+  /// [dispatch] controla se isso também despacha um evento
+  /// `ObserverInspector.onCreate` — passe `false` quando quem chamou já
+  /// despachou esse evento por conta própria (ex.: `CoreObservable`,
+  /// envolvido pela `Observable` do Flutter), para evitar que cada
+  /// inspector registrado veja o mesmo evento lógico duas vezes.
+  static void created(String label, Object? initialValue, {bool dispatch = true}) {
+    if (dispatch) {
+      _dispatch(
+        (ObserverInspector i) => i.onCreate(
+          ObservableCreateEvent(
+            label,
+            initialValue,
+            stackTrace: _maybeStackTrace(),
+          ),
         ),
-      ),
-    );
+      );
+    }
     if (!ObserverConfig.logging || !_allowed(ObserverLogLevel.lifecycle)) {
       return;
     }
@@ -119,17 +133,27 @@ abstract final class ObserverLogger {
   ///
   /// Registra uma atualização de valor, mostrando o valor anterior e o
   /// novo.
-  static void updated(String label, Object? oldValue, Object? newValue) {
-    _dispatch(
-      (ObserverInspector i) => i.onUpdate(
-        ObservableUpdateEvent(
-          label,
-          oldValue,
-          newValue,
-          stackTrace: _maybeStackTrace(),
+  /// See [created] for the meaning of [dispatch].
+  ///
+  /// Ver [created] para o significado de [dispatch].
+  static void updated(
+    String label,
+    Object? oldValue,
+    Object? newValue, {
+    bool dispatch = true,
+  }) {
+    if (dispatch) {
+      _dispatch(
+        (ObserverInspector i) => i.onUpdate(
+          ObservableUpdateEvent(
+            label,
+            oldValue,
+            newValue,
+            stackTrace: _maybeStackTrace(),
+          ),
         ),
-      ),
-    );
+      );
+    }
     if (!ObserverConfig.logging || !_allowed(ObserverLogLevel.updates)) {
       return;
     }
@@ -156,16 +180,25 @@ abstract final class ObserverLogger {
   ///
   /// Registra o descarte de um observável, incluindo quantos listeners
   /// foram removidos.
-  static void disposed(String label, int listenerCount) {
-    _dispatch(
-      (ObserverInspector i) => i.onDispose(
-        ObservableDisposeEvent(
-          label,
-          listenerCount,
-          stackTrace: _maybeStackTrace(),
+  /// See [created] for the meaning of [dispatch].
+  ///
+  /// Ver [created] para o significado de [dispatch].
+  static void disposed(
+    String label,
+    int listenerCount, {
+    bool dispatch = true,
+  }) {
+    if (dispatch) {
+      _dispatch(
+        (ObserverInspector i) => i.onDispose(
+          ObservableDisposeEvent(
+            label,
+            listenerCount,
+            stackTrace: _maybeStackTrace(),
+          ),
         ),
-      ),
-    );
+      );
+    }
     if (!ObserverConfig.logging || !_allowed(ObserverLogLevel.lifecycle)) {
       return;
     }
@@ -289,16 +322,21 @@ abstract final class ObserverLogger {
   ///
   /// Registra um warning de mau uso, com uma linha de sugestão indentada
   /// opcional.
-  static void warn(String message, {String? suggestion}) {
-    _dispatch(
-      (ObserverInspector i) => i.onWarning(
-        WarningEvent(
-          message,
-          suggestion: suggestion,
-          stackTrace: _maybeStackTrace(),
+  /// See [created] for the meaning of [dispatch].
+  ///
+  /// Ver [created] para o significado de [dispatch].
+  static void warn(String message, {String? suggestion, bool dispatch = true}) {
+    if (dispatch) {
+      _dispatch(
+        (ObserverInspector i) => i.onWarning(
+          WarningEvent(
+            message,
+            suggestion: suggestion,
+            stackTrace: _maybeStackTrace(),
+          ),
         ),
-      ),
-    );
+      );
+    }
     if (!ObserverConfig.warnings) {
       return;
     }

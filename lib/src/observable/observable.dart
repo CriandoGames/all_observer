@@ -2,9 +2,8 @@ import 'package:all_observer/src/core/typedefs.dart';
 import 'package:flutter/foundation.dart';
 
 import '../core/batch_scope.dart';
+import '../core/core_observable.dart';
 import '../core/dependency_tracker.dart';
-import '../core/listener_registry.dart';
-import '../core/untracked.dart';
 import '../logging/observer_config.dart';
 import '../logging/observer_logger.dart';
 import 'observable_subscription.dart';
@@ -78,15 +77,13 @@ class Observable<T> implements ValueListenable<T> {
   /// (ex.: comparar apenas um subconjunto de campos, ou valores de ponto
   /// flutuante dentro de uma tolerância). Padrão: `(a, b) => a == b`.
   Observable(T initialValue, {String? name, bool Function(T a, T b)? equals})
-    : _value = initialValue,
-      _name = name,
-      _equals = equals ?? _defaultEquals {
+    : _core = CoreObservable<T>(initialValue, name: name, equals: equals) {
+    // dispatch: false — CoreObservable's constructor already dispatched
+    // ObserverInspector.onCreate; this call is console-printing only.
     if (kDebugMode) {
-      ObserverLogger.created(_label, _value);
+      ObserverLogger.created(_label, initialValue, dispatch: false);
     }
   }
-
-  static bool _defaultEquals<T>(T a, T b) => a == b;
 
   /// Runs [action], coalescing every [Observable]/collection write inside
   /// it so each distinct changed one notifies its manual [listen]/`ever`
@@ -114,19 +111,32 @@ class Observable<T> implements ValueListenable<T> {
   /// ```
   static void batch(void Function() action) => BatchScope.run(action);
 
-  final ListenerRegistry _registry = ListenerRegistry();
-  final String? _name;
-  final bool Function(T a, T b) _equals;
-  T _value;
-  T? _previousValue;
-  bool _isClosed = false;
+  /// The pure-Dart engine this class wraps. See `CoreObservable`'s class
+  /// doc: it owns the value, the registry, `equals`, `peek`/`previousValue`,
+  /// and dispatches `ObserverInspector` events. This class layers
+  /// [ValueListenable] plus the `kDebugMode`-gated colored console logging
+  /// (via [ObserverLogger], with `dispatch: false` everywhere below — the
+  /// inspector event for each of these already fired from [_core] itself,
+  /// so passing `dispatch: false` here only adds the console line, never a
+  /// second inspector notification).
+  ///
+  /// O motor em Dart puro que esta classe envolve. Ver o doc de classe de
+  /// `CoreObservable`: ele possui o valor, o registro, o `equals`,
+  /// `peek`/`previousValue`, e despacha eventos `ObserverInspector`. Esta
+  /// classe adiciona [ValueListenable] mais o logging colorido no console
+  /// controlado por `kDebugMode` (via [ObserverLogger], com `dispatch:
+  /// false` em todo lugar abaixo — o evento de inspector para cada um
+  /// destes já disparou a partir de [_core], então passar `dispatch: false`
+  /// aqui só adiciona a linha de console, nunca uma segunda notificação de
+  /// inspector).
+  final CoreObservable<T> _core;
 
-  String get _label => '$runtimeType(${_name ?? '#$hashCode'})';
+  String get _label => _core.label;
 
   /// Whether [close] has already been called on this observable.
   ///
   /// Se [close] já foi chamado neste observável.
-  bool get isClosed => _isClosed;
+  bool get isClosed => _core.isClosed;
 
   /// Whether this observable currently has at least one listener attached
   /// (an [Observer] tracking it, or a manual [listen]/[addListener] call).
@@ -134,13 +144,10 @@ class Observable<T> implements ValueListenable<T> {
   /// Se este observável tem atualmente ao menos um listener anexado (um
   /// [Observer] rastreando-o, ou uma chamada manual a [listen]/
   /// [addListener]).
-  bool get hasListeners => _registry.hasListeners;
+  bool get hasListeners => _core.hasListeners;
 
   @override
-  T get value {
-    DependencyTracker.reportRead(_registry, label: _label);
-    return _value;
-  }
+  T get value => _core.value;
 
   /// Reads [value] without registering it as a dependency of whatever
   /// [Observer]/`Computed`/`Effect` is currently tracking (if any). Sugar
@@ -149,7 +156,7 @@ class Observable<T> implements ValueListenable<T> {
   /// Lê [value] sem registrá-lo como dependência do
   /// [Observer]/`Computed`/`Effect` que estiver rastreando no momento (se
   /// houver algum). Açúcar para `untracked(() => observable.value)`.
-  T peek() => untracked(() => value);
+  T peek() => _core.peek();
 
   /// The value this observable held immediately before its most recent
   /// notified change, or `null` if it has never changed since creation.
@@ -162,7 +169,7 @@ class Observable<T> implements ValueListenable<T> {
   /// é atualizado por uma mudança de valor de fato (o setter [value] quando
   /// o novo valor difere); [refresh] não o altera, já que o valor em si não
   /// mudou.
-  T? get previousValue => _previousValue;
+  T? get previousValue => _core.previousValue;
 
   /// Assigns [newValue], notifying listeners only if it differs from the
   /// current value (`!=`). No-ops with a debug warning if the observable
@@ -172,25 +179,44 @@ class Observable<T> implements ValueListenable<T> {
   /// diferente do valor atual (`!=`). Não faz nada (com warning em debug)
   /// se o observável já tiver sido [close]d.
   set value(T newValue) {
-    if (_isClosed) {
+    // `_core.value =` below calls straight into `_core.notifyListeners()`
+    // (CoreObservable's own), bypassing this class's [notifyListeners]
+    // override (and the installer call inside it) entirely — so this needs
+    // its own copy here, unconditionally, before any write-triggered
+    // cascade can possibly reach a cycle-detection guard downstream.
+    ObserverLogger.ensureErrorReporterInstalled();
+    if (_core.isClosed) {
       if (kDebugMode) {
         ObserverLogger.warn(
           'Tentativa de alterar $_label já descartado. Ignorado.',
+          dispatch: false,
         );
       }
       return;
     }
-    if (_equals(_value, newValue)) {
+    if (_core.equals(_core.peek(), newValue)) {
       return;
     }
-    ObserverLogger.checkWriteDuringBuild(_label);
-    final T oldValue = _value;
-    _previousValue = oldValue;
-    _value = newValue;
-    if (kDebugMode) {
-      ObserverLogger.updated(_label, oldValue, newValue);
+    // Console-only mirror of the check `_core.value =` is about to perform
+    // internally (CoreObservable._checkWriteDuringTracking): the actual
+    // strictMode throw, and the WarningEvent dispatch for the non-strict
+    // case, both happen inside that call below — this only reproduces the
+    // identical kDebugMode-gated console line, without a second dispatch.
+    if (kDebugMode &&
+        !ObserverConfig.strictMode &&
+        DependencyTracker.current != null) {
+      ObserverLogger.warn(
+        '$_label alterado DURANTE o build de um Observer.',
+        suggestion: 'Isso causa loop de rebuild. Mova a alteração para '
+            'fora do build.',
+        dispatch: false,
+      );
     }
-    notifyListeners();
+    final T oldValue = _core.peek();
+    _core.value = newValue; // may throw ObserverError in strictMode
+    if (kDebugMode) {
+      ObserverLogger.updated(_label, oldValue, newValue, dispatch: false);
+    }
   }
 
   /// Shorthand for assigning [newValue], mirroring `observable(newValue)`.
@@ -213,7 +239,7 @@ class Observable<T> implements ValueListenable<T> {
     if (newValue != null) {
       value = newValue;
     }
-    return _value;
+    return _core.peek();
   }
 
   /// Assigns [newValue], equivalent to `value = newValue`. Provided as a
@@ -251,10 +277,13 @@ class Observable<T> implements ValueListenable<T> {
   /// algo mudou", enquanto subclasses decidem o que "mudou" implica para
   /// seu tipo.
   void refresh() {
-    if (_isClosed) {
-      return;
-    }
-    notifyListeners();
+    // See the identical call + comment in `set value` below: `_core
+    // .refresh()` calls straight into `_core.notifyListeners()`, bypassing
+    // this class's own [notifyListeners] override (and its installer call)
+    // entirely — so this needs its own copy to stay reliable for a
+    // refresh-only usage pattern that never went through a `value =` write.
+    ObserverLogger.ensureErrorReporterInstalled();
+    _core.refresh();
   }
 
   /// Subscribes [callback] to future value changes without going through
@@ -286,49 +315,41 @@ class Observable<T> implements ValueListenable<T> {
     bool immediate = false,
     bool Function(T value)? when,
   }) {
-    if (_isClosed) {
-      if (immediate && (when == null || when(_value))) {
-        callback(_value);
-      }
-      final ObservableSubscription inert = ObservableSubscription.fromDisposer(
-        () {},
-      );
-      inert.cancel();
-      return inert;
+    final ObservableSubscription subscription = _core.listen(
+      callback,
+      immediate: immediate,
+      when: when,
+    );
+    if (!_core.isClosed) {
+      _warnIfPossibleLeak();
     }
-    void listener() {
-      if (when == null || when(_value)) {
-        callback(_value);
-      }
-    }
-
-    final void Function() dispose = _registry.add(listener);
-    if (immediate && (when == null || when(_value))) {
-      callback(_value);
-    }
-    _warnIfPossibleLeak();
-    return ObservableSubscription.fromDisposer(dispose);
+    return subscription;
   }
 
   void _warnIfPossibleLeak() {
+    // dispatch: false — CoreObservable.listen/addListener already
+    // dispatched their own (dispatch-only) possible-leak WarningEvent
+    // internally; this only adds the console line.
     if (kDebugMode &&
-        _registry.length >= ObserverConfig.listenerLeakThreshold) {
+        _core.registry.length >= ObserverConfig.listenerLeakThreshold) {
       ObserverLogger.warn(
-        '$_label tem ${_registry.length}+ listeners. Possível vazamento.',
+        '$_label tem ${_core.registry.length}+ listeners. Possível '
+        'vazamento.',
         suggestion: 'Observers sendo criados sem descarte?',
+        dispatch: false,
       );
     }
   }
 
   @override
   void addListener(VoidCallback listener) {
-    _registry.add(listener);
+    _core.addListener(listener);
     _warnIfPossibleLeak();
   }
 
   @override
   void removeListener(VoidCallback listener) {
-    _registry.remove(listener);
+    _core.removeListener(listener);
   }
 
   /// Notifies every current listener. Exposed for subclasses (e.g.
@@ -340,14 +361,8 @@ class Observable<T> implements ValueListenable<T> {
   /// [value].
   @protected
   void notifyListeners() {
-    // Belt-and-suspenders alongside the identical install in
-    // ObserverLogger.checkWriteDuringBuild: that one covers every `value =`
-    // write and collection mutation, but `refresh()` calls straight into
-    // this method without going through either of those first — so this
-    // covers the "only ever called refresh(), never a plain write" case
-    // too. Both are idempotent (`??=`).
     ObserverLogger.ensureErrorReporterInstalled();
-    _registry.notifyOrQueue();
+    _core.notifyListeners();
   }
 
   /// Disposes this observable: removes all listeners and marks it
@@ -356,14 +371,13 @@ class Observable<T> implements ValueListenable<T> {
   /// Descarta este observável: remove todos os listeners e o marca como
   /// [isClosed]. Escritas subsequentes são ignoradas com warning em debug.
   void close() {
-    if (_isClosed) {
+    if (_core.isClosed) {
       return;
     }
-    final int removed = _registry.length;
-    _registry.clear();
-    _isClosed = true;
+    final int removed = _core.registry.length;
+    _core.close();
     if (kDebugMode) {
-      ObserverLogger.disposed(_label, removed);
+      ObserverLogger.disposed(_label, removed, dispatch: false);
     }
   }
 }
