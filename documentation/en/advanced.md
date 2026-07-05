@@ -326,4 +326,4 @@ actual `Observer`/widget.
 
 ---
 
-Back to [README](https://github.com/CriandoGames/all_observer/blob/main/README.md) · Previous: [Workers](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/workers.md) · Next: [Comparison](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/comparison.md)
+Back to [README](https://github.com/CriandoGames/all_observer/blob/main/README.md) · Previous: [Workers](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/workers.md) · Next: [Testing](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/testing.md)

@@ -1,48 +1,59 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:all_observer/all_observer.dart';
+
+import '../controllers/fetch_controller.dart';
 
 /// Demo 3: `ObservableFuture` simulating a network fetch with an artificial
 /// delay and a random chance of failure, rendered through `when(loading:
 /// data: error:)`, plus a retry button and a stale-while-loading readout
 /// via `AsyncLoading.previousData`.
 ///
+/// The controller is created internally by default, but can be injected —
+/// see `example/test/observable_future_test.dart`, which injects a fake
+/// fetcher backed by a `Completer` for deterministic loading/data/error
+/// assertions.
+///
 /// Demo 3: `ObservableFuture` simulando uma busca de rede com atraso
 /// artificial e chance aleatória de falha, renderizada via `when(loading:
 /// data: error:)`, mais um botão de tentar novamente e uma leitura do tipo
 /// stale-while-loading via `AsyncLoading.previousData`.
 class AsyncDemo extends StatefulWidget {
-  /// Creates the async demo.
+  /// Creates the async demo. Pass [controller] to inject one (e.g. from a
+  /// test); otherwise a fresh [FetchController] (simulated network call) is
+  /// created and owned internally.
   ///
-  /// Cria o demo assíncrono.
-  const AsyncDemo({super.key});
+  /// Cria o demo assíncrono. Passe [controller] para injetar um (ex.: a
+  /// partir de um teste); caso contrário, um novo [FetchController] (chamada
+  /// de rede simulada) é criado e possuído internamente.
+  const AsyncDemo({super.key, this.controller});
+
+  /// An optional externally-owned controller. When provided, this widget
+  /// does NOT dispose it.
+  ///
+  /// Um controller opcional possuído externamente. Quando fornecido, este
+  /// widget NÃO o descarta.
+  final FetchController? controller;
 
   @override
   State<AsyncDemo> createState() => _AsyncDemoState();
 }
 
 class _AsyncDemoState extends State<AsyncDemo> {
-  final Random _random = Random();
-  late final ObservableFuture<int> _fetch;
-
-  Future<int> _simulateFetch() async {
-    await Future<void>.delayed(const Duration(seconds: 1));
-    if (_random.nextDouble() < 0.3) {
-      throw Exception('Simulated network failure');
-    }
-    return _random.nextInt(1000);
-  }
+  late final FetchController _controller;
+  late final bool _ownsController;
 
   @override
   void initState() {
     super.initState();
-    _fetch = ObservableFuture<int>(_simulateFetch);
+    _ownsController = widget.controller == null;
+    _controller = widget.controller ?? FetchController();
   }
 
   @override
   void dispose() {
-    _fetch.close();
+    if (_ownsController) {
+      _controller.dispose();
+    }
     super.dispose();
   }
 
@@ -58,7 +69,7 @@ class _AsyncDemoState extends State<AsyncDemo> {
           ),
           const SizedBox(height: 16),
           Observer(
-            () => _fetch.value.when(
+            () => _controller.fetch.value.when(
               loading: (int? previousData) => Row(
                 children: <Widget>[
                   const SizedBox(
@@ -86,7 +97,7 @@ class _AsyncDemoState extends State<AsyncDemo> {
           ),
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: _fetch.refresh,
+            onPressed: _controller.retry,
             child: const Text('Retry / Refresh'),
           ),
         ],

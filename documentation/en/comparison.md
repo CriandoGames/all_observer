@@ -90,4 +90,4 @@ scale; MobX if you're already invested in its action/reaction vocabulary;
 
 ---
 
-Back to [README](https://github.com/CriandoGames/all_observer/blob/main/README.md) · Previous: [Advanced](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/advanced.md) · Next: [Migrating from GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/migration_from_getx.md)
+Back to [README](https://github.com/CriandoGames/all_observer/blob/main/README.md) · Previous: [Testing](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/testing.md) · Next: [Migrating from GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/migration_from_getx.md)

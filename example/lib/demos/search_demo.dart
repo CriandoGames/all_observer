@@ -1,76 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:all_observer/all_observer.dart';
 
+import '../controllers/search_controller.dart';
+
 /// Demo 2: a `TextField` feeding an `Observable<String>` query, debounced
 /// 400ms via the `debounce` worker, filtering an `ObservableList` of
 /// results.
+///
+/// The controller is created internally by default, but can be injected —
+/// see `example/test/worker_debounce_test.dart`, which injects a shorter
+/// debounce window and a small fixed catalog for deterministic assertions.
 ///
 /// Demo 2: um `TextField` alimentando uma query `Observable<String>`,
 /// debounced em 400ms via o worker `debounce`, filtrando uma
 /// `ObservableList` de resultados.
 class SearchDemo extends StatefulWidget {
-  /// Creates the debounced search demo.
+  /// Creates the debounced search demo. Pass [controller] to inject one
+  /// (e.g. from a test); otherwise a fresh [FruitSearchController] is
+  /// created and owned internally.
   ///
-  /// Cria o demo de busca com debounce.
-  const SearchDemo({super.key});
+  /// Cria o demo de busca com debounce. Passe [controller] para injetar um
+  /// (ex.: a partir de um teste); caso contrário, um novo
+  /// [FruitSearchController] é criado e possuído internamente.
+  const SearchDemo({super.key, this.controller});
+
+  /// An optional externally-owned controller. When provided, this widget
+  /// does NOT dispose it.
+  ///
+  /// Um controller opcional possuído externamente. Quando fornecido, este
+  /// widget NÃO o descarta.
+  final FruitSearchController? controller;
 
   @override
   State<SearchDemo> createState() => _SearchDemoState();
 }
 
 class _SearchDemoState extends State<SearchDemo> {
-  static const List<String> _catalog = <String>[
-    'apple',
-    'banana',
-    'cherry',
-    'date',
-    'elderberry',
-    'fig',
-    'grape',
-    'honeydew',
-    'kiwi',
-    'lemon',
-    'mango',
-    'nectarine',
-    'orange',
-    'papaya',
-  ];
-
-  final ObservableString _query = ''.obs;
-  final ObservableList<String> _results = <String>[].obs;
-  final ObservableInt _searchRuns = 0.obs;
-  late final Worker _debounceWorker;
-  final TextEditingController _controller = TextEditingController();
+  late final FruitSearchController _controller;
+  late final bool _ownsController;
+  final TextEditingController _textController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _runSearch(_query.value);
-    _debounceWorker = debounce(
-      _query,
-      _runSearch,
-      time: const Duration(milliseconds: 400),
-    );
-  }
-
-  void _runSearch(String query) {
-    _searchRuns.value++;
-    final String needle = query.trim().toLowerCase();
-    final List<String> matches = needle.isEmpty
-        ? _catalog
-        : _catalog.where((String item) => item.contains(needle)).toList();
-    _results
-      ..clear()
-      ..addAll(matches);
+    _ownsController = widget.controller == null;
+    _controller = widget.controller ?? FruitSearchController();
   }
 
   @override
   void dispose() {
-    _debounceWorker.dispose();
-    _controller.dispose();
-    _query.close();
-    _results.close();
-    _searchRuns.close();
+    _textController.dispose();
+    if (_ownsController) {
+      _controller.dispose();
+    }
     super.dispose();
   }
 
@@ -82,17 +64,17 @@ class _SearchDemoState extends State<SearchDemo> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           TextField(
-            controller: _controller,
+            controller: _textController,
             decoration: const InputDecoration(
               labelText: 'Search fruit',
               border: OutlineInputBorder(),
             ),
-            onChanged: _query.setValue,
+            onChanged: _controller.query.setValue,
           ),
           const SizedBox(height: 8),
           Observer(
             () => Text(
-              'Real searches run: ${_searchRuns.value} '
+              'Real searches run: ${_controller.searchRuns.value} '
               '(typing fast coalesces into one, 400ms after you stop)',
               style: Theme.of(context).textTheme.bodySmall,
             ),
@@ -101,9 +83,9 @@ class _SearchDemoState extends State<SearchDemo> {
           Expanded(
             child: Observer(
               () => ListView.builder(
-                itemCount: _results.length,
+                itemCount: _controller.results.length,
                 itemBuilder: (context, index) =>
-                    ListTile(title: Text(_results[index])),
+                    ListTile(title: Text(_controller.results[index])),
               ),
             ),
           ),
