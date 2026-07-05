@@ -1,3 +1,5 @@
+import '../core/observer_inspector.dart';
+
 /// Controls which categories of informational logs are emitted when
 /// [ObserverConfig.logging] is enabled.
 ///
@@ -84,6 +86,39 @@ abstract final class ObserverConfig {
   /// em terminais sem suporte a ANSI. Padrão: `true`.
   static bool useColors = true;
 
+  /// Extra [ObserverInspector]s notified alongside the package's built-in
+  /// console logging (controlled by [logging]/[warnings]/[logLevel]) for
+  /// every create/update/dispose/track/warning/effect-run event. Add a
+  /// `RecordingInspector` here for an in-memory audit trail, or your own
+  /// implementation to forward events elsewhere (analytics, a custom log
+  /// sink, ...). Default: empty.
+  ///
+  /// An exception thrown by one inspector is caught and isolated — it never
+  /// prevents the remaining inspectors (or the built-in console logging)
+  /// from running, and never breaks the notification being reported on.
+  ///
+  /// Inspectors extras notificados junto com o logging fixo no console do
+  /// pacote (controlado por [logging]/[warnings]/[logLevel]) para todo
+  /// evento de criação/atualização/descarte/rastreamento/warning/execução
+  /// -de-effect. Adicione um `RecordingInspector` aqui para uma trilha de
+  /// auditoria em memória, ou sua própria implementação para encaminhar
+  /// eventos a outro lugar (analytics, um sink de log próprio, ...). Padrão:
+  /// vazio.
+  ///
+  /// Uma exceção lançada por um inspector é capturada e isolada — nunca
+  /// impede que os demais inspectors (ou o logging fixo no console) rodem,
+  /// e nunca quebra a notificação que estava sendo reportada.
+  static List<ObserverInspector> inspectors = <ObserverInspector>[];
+
+  /// Whether events dispatched to [inspectors] carry a captured
+  /// [StackTrace]. Default: `false`, since capturing a stack trace on every
+  /// event is not free — enable only while actively debugging.
+  ///
+  /// Se os eventos despachados para [inspectors] carregam um [StackTrace]
+  /// capturado. Padrão: `false`, já que capturar um stack trace a cada
+  /// evento não é gratuito — habilite apenas ao depurar ativamente.
+  static bool captureStackTraces = false;
+
   /// Resets every setting to its default value. Intended for use between
   /// tests.
   ///
@@ -96,5 +131,7 @@ abstract final class ObserverConfig {
     strictMode = false;
     listenerLeakThreshold = 50;
     useColors = true;
+    inspectors = <ObserverInspector>[];
+    captureStackTraces = false;
   }
 }

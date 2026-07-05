@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 
 import '../core/batch_scope.dart';
 import '../core/dependency_tracker.dart';
+import '../core/observer_inspector.dart';
 import '../core/typedefs.dart';
 import '../errors/observer_error.dart';
 import '../logging/observer_config.dart';
@@ -83,7 +84,10 @@ class _Effect {
       return;
     }
     _clearDependencies();
-    final TrackingContext context = TrackingContext(_onDependencyChanged);
+    final TrackingContext context = TrackingContext(
+      _onDependencyChanged,
+      ownerLabel: _label,
+    );
     try {
       DependencyTracker.track(context, _run);
     } catch (error) {
@@ -110,6 +114,17 @@ class _Effect {
       // caso de falha — ver o mesmo raciocínio em Computed._recompute.
       _dependencyDisposers = context.disposers;
     }
+    dispatchToInspectors(
+      ObserverConfig.inspectors,
+      (ObserverInspector i) => i.onEffectRun(
+        EffectEvent(
+          _label,
+          stackTrace: ObserverConfig.captureStackTraces
+              ? StackTrace.current
+              : null,
+        ),
+      ),
+    );
     if (kDebugMode && context.readCount == 0 && !_warnedEmptyOnce) {
       _warnedEmptyOnce = true;
       final String message =

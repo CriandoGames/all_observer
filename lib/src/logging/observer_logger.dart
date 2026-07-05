@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../core/dependency_tracker.dart';
+import '../core/observer_inspector.dart';
 import '../errors/observer_error.dart';
 import 'observer_config.dart';
 
@@ -48,10 +49,64 @@ abstract final class ObserverLogger {
         ObserverConfig.logLevel == level;
   }
 
+  /// Captures a [StackTrace] for the current call site if
+  /// [ObserverConfig.captureStackTraces] is enabled, `null` otherwise.
+  ///
+  /// Captura um [StackTrace] do ponto de chamada atual se
+  /// [ObserverConfig.captureStackTraces] estiver habilitado, `null` caso
+  /// contrário.
+  static StackTrace? _maybeStackTrace() =>
+      ObserverConfig.captureStackTraces ? StackTrace.current : null;
+
+  /// Dispatches [event] to every extra [ObserverInspector] registered via
+  /// [ObserverConfig.inspectors], in addition to whatever console logging
+  /// already happened. Each inspector runs inside its own `try`/`catch`: one
+  /// throwing never blocks the rest, or the notification being reported on
+  /// — same principle as [ListenerRegistry.notifyAll].
+  ///
+  /// Despacha [event] para todo [ObserverInspector] extra registrado via
+  /// [ObserverConfig.inspectors], além de qualquer logging no console que já
+  /// tenha acontecido. Cada inspector roda dentro do próprio `try`/`catch`:
+  /// um que lança nunca bloqueia os demais, nem a notificação que estava
+  /// sendo reportada — mesmo princípio de [ListenerRegistry.notifyAll].
+  static void _dispatch(void Function(ObserverInspector inspector) call) {
+    if (ObserverConfig.inspectors.isEmpty) {
+      return;
+    }
+    for (final ObserverInspector inspector in List<ObserverInspector>.of(
+      ObserverConfig.inspectors,
+    )) {
+      try {
+        call(inspector);
+      } catch (error) {
+        if (kDebugMode) {
+          debugPrint(
+            _prefixed(
+              _paint(
+                _AnsiColor.redBold,
+                '✖ ObserverInspector (${inspector.runtimeType}) lançou ao '
+                'processar um evento: $error',
+              ),
+            ),
+          );
+        }
+      }
+    }
+  }
+
   /// Logs the creation of an observable with its initial value.
   ///
   /// Registra a criação de um observável com seu valor inicial.
   static void created(String label, Object? initialValue) {
+    _dispatch(
+      (ObserverInspector i) => i.onCreate(
+        ObservableCreateEvent(
+          label,
+          initialValue,
+          stackTrace: _maybeStackTrace(),
+        ),
+      ),
+    );
     if (!ObserverConfig.logging || !_allowed(ObserverLogLevel.lifecycle)) {
       return;
     }
@@ -64,6 +119,16 @@ abstract final class ObserverLogger {
   /// Registra uma atualização de valor, mostrando o valor anterior e o
   /// novo.
   static void updated(String label, Object? oldValue, Object? newValue) {
+    _dispatch(
+      (ObserverInspector i) => i.onUpdate(
+        ObservableUpdateEvent(
+          label,
+          oldValue,
+          newValue,
+          stackTrace: _maybeStackTrace(),
+        ),
+      ),
+    );
     if (!ObserverConfig.logging || !_allowed(ObserverLogLevel.updates)) {
       return;
     }
@@ -91,6 +156,15 @@ abstract final class ObserverLogger {
   /// Registra o descarte de um observável, incluindo quantos listeners
   /// foram removidos.
   static void disposed(String label, int listenerCount) {
+    _dispatch(
+      (ObserverInspector i) => i.onDispose(
+        ObservableDisposeEvent(
+          label,
+          listenerCount,
+          stackTrace: _maybeStackTrace(),
+        ),
+      ),
+    );
     if (!ObserverConfig.logging || !_allowed(ObserverLogLevel.lifecycle)) {
       return;
     }
@@ -175,6 +249,15 @@ abstract final class ObserverLogger {
   /// Registra um warning de mau uso, com uma linha de sugestão indentada
   /// opcional.
   static void warn(String message, {String? suggestion}) {
+    _dispatch(
+      (ObserverInspector i) => i.onWarning(
+        WarningEvent(
+          message,
+          suggestion: suggestion,
+          stackTrace: _maybeStackTrace(),
+        ),
+      ),
+    );
     if (!ObserverConfig.warnings) {
       return;
     }

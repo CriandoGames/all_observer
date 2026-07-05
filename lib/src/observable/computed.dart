@@ -154,7 +154,10 @@ class Computed<T> implements ValueListenable<T> {
 
   void _recompute() {
     _clearDependencies();
-    final TrackingContext context = TrackingContext(_onDependencyChanged);
+    final TrackingContext context = TrackingContext(
+      _onDependencyChanged,
+      ownerLabel: _label,
+    );
     try {
       final T newValue = DependencyTracker.track(context, _compute);
       // Compare against the still-valid previous value/flag *before*

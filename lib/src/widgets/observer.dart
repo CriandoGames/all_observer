@@ -154,6 +154,7 @@ class _ObserverState extends State<Observer> {
     _clearDependencies();
     final TrackingContext trackingContext = TrackingContext(
       _onDependencyChanged,
+      ownerLabel: _label,
     );
     try {
       final Widget Function() runBuilder = widget._childBuilder != null

@@ -18,6 +18,8 @@
 /// `debounce`, `interval`).
 library;
 
+export 'src/core/observer_inspector.dart';
+export 'src/core/recording_inspector.dart';
 export 'src/core/untracked.dart';
 export 'src/effects/effect.dart';
 export 'src/errors/observer_error.dart';

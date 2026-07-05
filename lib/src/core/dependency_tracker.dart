@@ -1,4 +1,6 @@
+import '../logging/observer_config.dart';
 import 'listener_registry.dart';
+import 'observer_inspector.dart';
 import 'typedefs.dart';
 
 /// A single frame of the tracking stack, created while an [Observer] (or
@@ -8,17 +10,31 @@ import 'typedefs.dart';
 /// consumidor similar) executa seu builder.
 class TrackingContext {
   /// Creates a tracking context that reports dependency changes to
-  /// [onDependencyChanged].
+  /// [onDependencyChanged]. [ownerLabel], if given, identifies the
+  /// Observer/Computed/Effect doing the tracking, for
+  /// `ObserverInspector.onTrack` events.
   ///
   /// Cria um contexto de rastreamento que reporta mudanças de dependência
-  /// para [onDependencyChanged].
-  TrackingContext(this.onDependencyChanged);
+  /// para [onDependencyChanged]. [ownerLabel], se fornecido, identifica o
+  /// Observer/Computed/Effect que está rastreando, para eventos
+  /// `ObserverInspector.onTrack`.
+  TrackingContext(this.onDependencyChanged, {this.ownerLabel});
 
   /// Invoked when any observable read during this context later changes.
   ///
   /// Invocado quando qualquer observável lido durante este contexto mudar
   /// posteriormente.
   final ObserverVoidCallback onDependencyChanged;
+
+  /// Debug label of the Observer/Computed/Effect that owns this context, if
+  /// known. Only used to populate `ObserverInspector.onTrack` events — has
+  /// no effect on tracking behavior itself.
+  ///
+  /// Rótulo de debug do Observer/Computed/Effect dono deste contexto, se
+  /// conhecido. Usado apenas para popular eventos
+  /// `ObserverInspector.onTrack` — não tem efeito no comportamento de
+  /// rastreamento em si.
+  final String? ownerLabel;
 
   /// Disposers accumulated for every distinct observable read while this
   /// context was active. Executed on unmount / next build.
@@ -177,6 +193,20 @@ abstract final class DependencyTracker {
     context.disposers.add(disposer);
     if (label != null) {
       context.trackedLabels.add(label);
+      if (context.ownerLabel != null) {
+        dispatchToInspectors(
+          ObserverConfig.inspectors,
+          (ObserverInspector i) => i.onTrack(
+            TrackEvent(
+              context.ownerLabel!,
+              label,
+              stackTrace: ObserverConfig.captureStackTraces
+                  ? StackTrace.current
+                  : null,
+            ),
+          ),
+        );
+      }
     }
   }
 }
