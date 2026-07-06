@@ -176,4 +176,19 @@ class ConsoleInspector implements ObserverInspector {
     // Registre seu próprio ObserverInspector via ObserverConfig.inspectors
     // se quiser registrar essas execuções.
   }
+
+  @override
+  void onScopeDispose(ScopeDisposeEvent event) {
+    // Scope disposal is silent by default for the same reason as
+    // onEffectRun above: no console output existed for it before the event
+    // was introduced, so the default visible behavior stays identical.
+    // Register your own ObserverInspector via ObserverConfig.inspectors if
+    // you want to log these.
+    //
+    // O descarte de escopo é silencioso por padrão pelo mesmo motivo de
+    // onEffectRun acima: nenhuma saída de console existia para ele antes
+    // do evento ser introduzido, então o comportamento visível padrão
+    // permanece idêntico. Registre seu próprio ObserverInspector via
+    // ObserverConfig.inspectors se quiser registrar esses descartes.
+  }
 }

@@ -18,6 +18,7 @@ Estado reativo para Flutter sem dependências — `final count = 0.obs;` +
 - [Instalando](#instalando)
 - [Contador passo a passo](#contador-passo-a-passo)
 - [Os blocos de construção](#os-blocos-de-construção)
+- [Observer vs watch(context) — quando usar cada um](#observer-vs-watchcontext--quando-usar-cada-um)
 - [Comparação](#comparação)
 - [Quando usar (e quando não usar)](#quando-usar-e-quando-não-usar)
 - [Documentação](#documentação)
@@ -41,7 +42,7 @@ flutter pub add all_observer
 
 ```yaml
 dependencies:
-  all_observer: ^1.3.2
+  all_observer: ^1.4.0
 ```
 
 ```dart
@@ -132,6 +133,18 @@ Observer(() => Text('${count.value}'));
 
 [Mais sobre `Observer` aqui](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/core_concepts.md).
 
+### `watch(context)` — sem wrapper
+
+Qualquer widget pode inscrever seu próprio element direto do `build()`;
+só aquele widget reconstrói quando o valor muda.
+
+```dart
+@override
+Widget build(BuildContext context) => Text('${count.watch(context)}');
+```
+
+[Mais sobre `watch(context)` (incluindo seu trade-off de limpeza preguiçosa) aqui](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/advanced.md).
+
 ### `Computed`
 
 Valor derivado preguiçoso e memoizado, construído sobre o mesmo rastreador que o `Observer` usa.
@@ -187,6 +200,70 @@ final search = debounce(query, (String value) => runSearch(value),
 Agrupa múltiplas escritas para que assinantes manuais (`listen`/`ever`) notifiquem uma vez em vez de uma por escrita — o `Observer` já agrupa rebuilds por frame por conta própria.
 
 [Mais sobre `batch` e dependências em diamante aqui](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/advanced.md).
+
+## Observer vs watch(context) — quando usar cada um
+
+Os dois usam o **mesmo rastreador de dependências** e redescobrrem as dependências a cada build — nenhum é "mais inteligente" que o outro. A diferença está em onde a assinatura vive e quanto código você escreve.
+
+### Tabela de decisão rápida
+
+| Situação | Use |
+|---|---|
+| Widget folha pequeno cujo `build()` inteiro é reativo | `watch(context)` |
+| Uma fatia reativa dentro de um `build()` grande (ex.: só um `Text` num `Scaffold`) | `Observer(() => ...)` |
+| Subárvore estática cara que nunca deve reconstruir | `Observer.withChild(builder:, child:)` |
+| Observável global de vida longa lido por muitas telas de vida curta | `Observer` (limpeza imediata no `dispose()`) |
+| Valor reativo dentro de um builder de `Observer` | `watch(context)` — delega ao contexto externo, **sem assinatura dupla** |
+
+### Lado a lado
+
+```dart
+// watch(context) — o próprio widget se inscreve, sem wrapper
+class CounterText extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Text('${count.watch(context)}');
+}
+
+// Observer — um widget wrapper é dono da assinatura
+Observer(() => Text('${count.value}'));
+```
+
+Os dois reconstroem **só o widget que leu o valor**. A diferença prática aparece quando o `build()` é grande:
+
+```dart
+// watch reconstrói o Scaffold inteiro quando count muda
+Widget build(BuildContext context) {
+  final n = count.watch(context); // <-- inscreve este Element
+  return Scaffold(
+    body: Center(child: Text('$n')),
+    // ... 50 outros widgets
+  );
+}
+
+// Observer reconstrói só o nó Text
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: Center(
+      child: Observer(() => Text('${count.value}')), // <-- só este reconstrói
+    ),
+    // ... 50 outros widgets
+  );
+}
+```
+
+### Comportamento de limpeza
+
+| | Momento da limpeza |
+|---|---|
+| `Observer` | Imediata — `dispose()` cancela a assinatura no unmount |
+| `watch(context)` | Preguiçosa — a assinatura morta é liberada na **primeira notificação após o unmount** (garantidamente no-op: nada reconstrói, nada lança). Em um observável que nunca mais mudar, o listener inerte persiste — prefira `Observer` para globais de vida longa. |
+
+### A regra de ouro
+
+> **Widget folha, `build()` inteiro é reativo → `watch(context)`.**  
+> **Fatia reativa dentro de um `build()` grande, subárvore estática, ou limpeza imediata importa → `Observer`.**
+
+Eles são aditivos e compõem livremente. Uma chamada de `watch` dentro de um builder de `Observer` simplesmente lê o valor e delega ao rastreador externo — nenhuma assinatura extra é criada.
 
 ## Comparação
 

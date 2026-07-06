@@ -16,6 +16,10 @@ dúvida, o texto permanece genérico em vez de específico.
 | Roteamento | Nenhum | Embutido (`Get.to`, rotas nomeadas) | Nenhum | Nenhum | Nenhum | Nenhum |
 | Escopo | Só valores reativos + rebuild de widgets | Estado + rotas + DI + snackbars/dialogs (framework completo) | Estado + DI (grafo de providers), sem helpers de rota/UI | Arquitetura de eventos/estado (padrão BLoC) | Valores reativos + actions/reactions, sem DI/rotas | Só reatividade, multiplataforma (não é Flutter-específico) |
 | Rastreamento de dependência | Automático (leitura de `.value` durante build/`effect()`/`Computed`) | Automático, via `Obx`/`GetX` lendo `.value`/`.obs` | Automático, via `ref.watch` dentro de um `Provider`/`Notifier` | Manual (eventos explícitos → transições de estado) | Automático, via `Observer`/reactions lendo campos `@observable` | Automático, via leitura de signal dentro de um effect/computed |
+| Effects autônomos | `effect()` (desde 1.3.0), mais workers para o caso de um único observável | Workers (`ever`, `once`, ...); nenhum effect genérico multi-dependência documentado | `ref.listen` (por provider) | Os handlers de evento fazem esse papel | `autorun`/`reaction`/`when` | `effect()` — sua primitiva nativa |
+| Leituras não-rastreadas | `untracked()` / `.peek()` (desde 1.3.0) | Não é um conceito documentado | `ref.read` (leitura pontual) | N/A | `untracked` | `untracked()` / `.peek()` |
+| Rebuild de widget sem widget wrapper | `watch(context)` (desde 1.4.0; limpeza preguiçosa pós-unmount — ver [advanced.md](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/advanced.md)) | Não — widgets wrapper `Obx`/`GetX` | Via classes base (`ConsumerWidget`) em vez de wrapper | Não — wrappers `BlocBuilder`/`BlocSelector` | Não — widget wrapper `Observer` | Sim — `signal.watch(context)` no `signals_flutter` |
+| Auto-limpeza escopada | `ReactiveScope` + `ScopedObserverMixin`/`ObserverStateMixin` (desde 1.4.0) | `GetxController.onClose` (atrelado ao ciclo de vida do DI dele) | Providers `autoDispose` (atrelados ao grafo de providers) | `Bloc.close`, gerenciado pelos providers do `flutter_bloc` | Disposers de reaction; nenhum escopo ambiente documentado | Disposers de effect + bindings Flutter no `signals_flutter` |
 | Primitivas assíncronas | `ObservableFuture`/`ObservableStream` (seguro contra corrida, contador de geração) | `.obs` + tratamento assíncrono manual | `FutureProvider`/`StreamProvider` | Handlers assíncronos de evento (`on<Event>` com `emit`) | Reactions sobre actions assíncronas | Depende dos bindings de plataforma |
 | Glitches de dependência em diamante | Prevenidos por design (flush em duas fases, `ARCHITECTURE.md`) | Não é uma garantia documentada | N/A (providers não formam um grafo encadeado tipo `Computed` da mesma forma) | N/A (máquina de estados, não um grafo de dependência) | Prevenidos pelo próprio núcleo reativo do MobX | Prevenidos por design (seu principal diferencial) |
 | Testabilidade | Objetos Dart comuns, sem widget para a maioria dos testes | `Get.testMode`, testes de widget para `Obx` | `ProviderContainer` para testes unitários | Bem estabelecida (`bloc_test`, `blocTest`) | Objetos reativos comuns, testável em unidade | Objetos comuns, testável em unidade |
@@ -65,12 +69,21 @@ automático de dependências sem nenhuma etapa de geração de código.
 ## signals
 
 O parente filosófico mais próximo: reatividade sem dependências e livre
-de glitch, com uma API pequena. `signals` é Dart multiplataforma (não é
-Flutter-específico) com uma extensão de DevTools para navegador em seu
-ecossistema. `all_observer` é Flutter-first (com
+de glitch, com uma API pequena. A partir da 1.4.0 a sobreposição é grande
+dos dois lados: ambos têm `effect()`, `untracked()`, valores computados,
+batching e um `watch(context)` no nível do widget sem widget wrapper.
+Onde o `signals` ainda está à frente, com honestidade: ele é Dart
+multiplataforma (não é Flutter-específico) com uma extensão de DevTools
+para navegador em seu ecossistema; seu grafo de computeds se desanexa
+automaticamente quando um computed perde todos os assinantes, enquanto um
+`Computed` do `all_observer` continua inscrito até o `close()` (ou até um
+`ReactiveScope` fechá-lo); e seu núcleo reativo tem anos de rodagem em
+produção entre ecossistemas (JS/Dart) por trás do seu modelo de
+agendamento. `all_observer` é Flutter-first (com
 `package:all_observer/core.dart` como sua própria válvula de escape em
-Dart puro) e traz um widget `Observer`, coleções reativas, e primitivas
-assíncronas seguras contra corrida prontas no mesmo pacote.
+Dart puro) e traz um widget `Observer`, coleções reativas, primitivas
+assíncronas seguras contra corrida e auto-limpeza escopada prontas no
+mesmo pacote sem dependências.
 
 ## Por que escolher `all_observer`
 

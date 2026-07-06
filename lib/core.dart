@@ -1,7 +1,8 @@
 /// Pure-Dart core of `all_observer`: the dependency tracker, listener
 /// registry, batch/flush engine, typedefs, and observability primitives
 /// (`ObserverInspector`, `RecordingInspector`), plus the `untracked()`
-/// escape hatch and error-reporting hook — with **zero import of
+/// escape hatch, the `ReactiveScope`/`ScopedObserverMixin` scoped-cleanup
+/// primitives, and the error-reporting hook — with **zero import of
 /// `package:flutter`**. Usable from a CLI/server context, not just Flutter
 /// apps.
 ///
@@ -17,8 +18,9 @@
 /// Núcleo em Dart puro do `all_observer`: o rastreador de dependências, o
 /// registro de listeners, o motor de batch/flush, os typedefs, e as
 /// primitivas de observabilidade (`ObserverInspector`, `RecordingInspector`),
-/// além da escapatória `untracked()` e o gancho de relato de erros — com
-/// **zero import de `package:flutter`**. Utilizável em um contexto de
+/// além da escapatória `untracked()`, das primitivas de limpeza escopada
+/// `ReactiveScope`/`ScopedObserverMixin` e o gancho de relato de erros —
+/// com **zero import de `package:flutter`**. Utilizável em um contexto de
 /// CLI/servidor, não só em apps Flutter.
 ///
 /// Este é um *subconjunto* de `package:all_observer/all_observer.dart`:
@@ -39,7 +41,9 @@ export 'src/core/dependency_tracker.dart';
 export 'src/core/listener_registry.dart';
 export 'src/core/observable_store.dart';
 export 'src/core/observer_inspector.dart';
+export 'src/core/reactive_scope.dart';
 export 'src/core/recording_inspector.dart';
+export 'src/core/scoped_observer_mixin.dart';
 export 'src/core/typedefs.dart';
 export 'src/core/untracked.dart';
 export 'src/errors/observer_cycle_error.dart';

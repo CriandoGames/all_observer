@@ -2,6 +2,7 @@ import 'batch_scope.dart';
 import 'dependency_tracker.dart';
 import 'listener_registry.dart';
 import 'observer_inspector.dart';
+import 'reactive_scope.dart';
 import 'typedefs.dart';
 import '../logging/observer_config.dart';
 import '../observable/observable_subscription.dart';
@@ -30,13 +31,31 @@ class CoreComputed<T> {
   /// See `Computed`'s constructor for the meaning of [name] and [equals] —
   /// identical here. [compute] does not run until [value] is first read.
   ///
+  /// If a `ReactiveScope` is currently active (`ReactiveScope.current`),
+  /// [close] is registered in it, so disposing the scope closes this
+  /// instance. Registration lives here — the core engine — rather than in
+  /// the Flutter `Computed` wrapper, so both layers (and `select()`, which
+  /// builds on `Computed`) participate through a single, non-duplicated
+  /// point. Created outside any scope, behavior is unchanged: nothing is
+  /// registered anywhere.
+  ///
   /// Cria um [CoreComputed] que deriva seu valor executando [compute]. Ver
   /// o construtor de `Computed` para o significado de [name] e [equals] —
   /// idêntico aqui. [compute] não roda até que [value] seja lido pela
   /// primeira vez.
+  ///
+  /// Se um `ReactiveScope` estiver ativo (`ReactiveScope.current`), [close]
+  /// é registrado nele, então descartar o escopo fecha esta instância. O
+  /// registro vive aqui — no motor do core — em vez de no wrapper Flutter
+  /// `Computed`, para que ambas as camadas (e o `select()`, que constrói
+  /// sobre `Computed`) participem por um único ponto, sem duplicação.
+  /// Criado fora de qualquer escopo, o comportamento é o de antes: nada é
+  /// registrado em lugar nenhum.
   CoreComputed(this._compute, {String? name, bool Function(T a, T b)? equals})
     : _name = name,
-      _equals = equals ?? _defaultEquals;
+      _equals = equals ?? _defaultEquals {
+    ReactiveScope.current?.add(close);
+  }
 
   static bool _defaultEquals<T>(T a, T b) => a == b;
 

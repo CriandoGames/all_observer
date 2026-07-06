@@ -4,8 +4,8 @@
 
 `batch`, diamond dependency graphs, `equals`/`setValue`, logging/`strictMode`,
 design decisions, known limitations, testing — plus the smaller optional
-building blocks (`effect`, `untracked`, inspectors, lifecycle helpers,
-`core.dart`).
+building blocks (`effect`, `untracked`, `watch(context)`, `ReactiveScope`,
+inspectors, lifecycle helpers, `core.dart`).
 
 ## `Observable.batch`
 
@@ -122,10 +122,10 @@ for (final event in recorder.events) {
 }
 ```
 
-Every creation/update/dispose/tracking/warning/effect-run event is exposed
-through the `ObserverInspector` interface (`onCreate`/`onUpdate`/
-`onDispose`/`onTrack`/`onWarning`/`onEffectRun`), not just printed to the
-console. `ConsoleInspector` — the classic colored terminal output — is
+Every creation/update/dispose/tracking/warning/effect-run/scope-dispose
+event is exposed through the `ObserverInspector` interface (`onCreate`/
+`onUpdate`/`onDispose`/`onTrack`/`onWarning`/`onEffectRun`/
+`onScopeDispose`), not just printed to the console. `ConsoleInspector` — the classic colored terminal output — is
 itself a formal implementation, called directly and unconditionally so
 registering your own inspectors can never duplicate, silence, or reorder
 it. `RecordingInspector` ships as an in-memory ring buffer (default 1000
@@ -151,6 +151,105 @@ class, a background listener). Workers (`ever`/`once`/`debounce`/`interval`)
 remain the right tool for the common single-observable case; `effect` is
 for callbacks that read more than one observable, or whose dependencies
 change conditionally between runs.
+
+## Surgical rebuilds with `watch(context)`
+
+```dart
+class CounterLabel extends StatelessWidget {
+  const CounterLabel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // No Observer wrapper: this element subscribes itself.
+    return Text('${count.watch(context)}');
+  }
+}
+```
+
+`observable.watch(context)` (also available on `Computed`) reads the value
+and subscribes the calling widget's own `Element`: when the observable
+changes, only that element rebuilds. It is `Observer` semantics at the
+granularity of the calling widget, with no wrapper widget in the tree —
+handy when a whole `build()` method is effectively one reactive expression.
+
+Everything else works like `Observer`: dependencies are re-discovered on
+every build (conditional `watch`es on different observables per pass work
+naturally), several observables watched by the same element coalesce into
+a single rebuild per batch/frame, and a change that lands during
+build/layout/paint defers the rebuild to a post-frame callback instead of
+throwing. Inside an `Observer` builder (or a `Computed`/`effect`),
+`watch` simply reports the read to that active tracker and does *not*
+also subscribe the element — no double subscription.
+
+**Lazy cleanup — the one trade-off to know about.** Flutter's `Element`
+exposes no unmount hook to packages, so a subscription made by `watch`
+can outlive its element until the *first notification after unmount*: at
+that point it's a guaranteed no-op (nothing rebuilds, nothing throws) and
+every subscription of that element is released. In practice: at most one
+extra ignored notification per observable, never a rebuild of a dead
+widget. The corner case is an observable that *never changes again* — its
+inert listener then stays attached. If that pattern matters in your app
+(a long-lived global observable read by many short-lived screens), prefer
+`Observer`, whose `dispose()` cleans up eagerly.
+
+In debug builds, calling `watch` outside `build()` logs a warning — and
+throws an `ObserverError` under `ObserverConfig.strictMode` — since the
+subscription would not follow the element's rebuild cycle.
+
+## Scoped cleanup with `ReactiveScope`
+
+```dart
+final scope = ReactiveScope(name: 'CounterController');
+
+scope.run(() {
+  total = Computed(() => a.value + b.value);   // registered in the scope
+  effect(() => print(total.value));             // registered in the scope
+  ever(a, (_) => save());                       // registered in the scope
+});
+
+scope.dispose(); // closes the Computed, cancels the effect and the worker
+```
+
+Every `Computed`, `effect()` and worker (`ever`/`once`/`debounce`/
+`interval`) created inside `scope.run(...)` registers its own disposer in
+the scope, so one `dispose()` call tears everything down — in reverse
+creation (LIFO) order, and idempotently. It lives in the pure-Dart core
+(`package:all_observer/core.dart` exports it too), so controllers with no
+Flutter import can use it. Everything is opt-in: created outside any
+`run()`, resources behave exactly as before — you own their disposal.
+
+Details worth knowing: scopes nest (a scope constructed inside a parent's
+`run()` is disposed with the parent; disposing the child never affects
+the parent); `scope.add(disposer)` registers anything else by hand (an
+`ObservableSubscription.cancel`, an `ObservableFuture.close`, ...);
+registering on an already-disposed scope runs the disposer immediately
+(never leaks) plus a debug warning — or an `ObserverError` under
+`strictMode`; and each disposal dispatches an
+`ObserverInspector.onScopeDispose` event. Plain `Observable`s are
+deliberately **not** captured: they hold no resource that must be
+released — `close()` only clears listeners, and listeners are owned by
+their consumers (`Observer`/`Computed`/`effect`/workers), which the scope
+already covers. Register one manually via `scope.add(obs.close)` if you
+want the write-after-close protection.
+
+For the common "controller class" case, `ScopedObserverMixin` packages
+this up with the same ergonomics `ObserverStateMixin` has for `State`s:
+
+```dart
+class CounterController with ScopedObserverMixin {
+  final a = 1.obs;
+  final b = 2.obs;
+
+  late final total = scoped(() => Computed(() => a.value + b.value));
+
+  CounterController() {
+    scoped(() => ever(a, (_) => save()));
+    autoDispose(someSubscription.cancel); // manual registration
+  }
+
+  void close() => disposeScope();
+}
+```
 
 ## Escape hatches: `untracked()`, `.peek()`, `.previousValue`
 
@@ -186,8 +285,10 @@ class _MyPageState extends State<MyPage> with ObserverStateMixin {
 any `Disposer` (a subscription's `.cancel`, a `Computed`'s `.close`, ...).
 This is for side effects that don't belong in `build()` — navigation,
 snackbars, driving an `AnimationController` — not a replacement for
-`Observer`. Every registered disposer runs at most once, in registration
-order.
+`Observer`. Every registered disposer runs exactly once, in reverse
+registration (LIFO) order. Since 1.4.0 this mixin runs on an internal
+`ReactiveScope` (same engine as `ScopedObserverMixin`, see the scoped
+-cleanup section above) — an internal refactor, same public API.
 
 ## Optional persistence with `ObservableStore`
 
@@ -294,7 +395,9 @@ instead of a raw stack overflow or an infinite loop.
   to its current dependencies indefinitely — it does not unsubscribe
   itself just because nobody is listening anymore. Call `close()` once
   you're done with a `Computed` you created manually (short-lived ones,
-  e.g. from `select`, are easy to forget).
+  e.g. from `select`, are easy to forget) — or create it inside a
+  `ReactiveScope`/`ScopedObserverMixin` (see above) so the scope's
+  `dispose()` closes it for you.
 - **Single-isolate confinement.** Like the rest of Dart, every
   `Observable`/`Computed`/collection is confined to the isolate that
   created it; there is no cross-isolate synchronization. Use

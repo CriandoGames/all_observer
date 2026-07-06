@@ -16,6 +16,10 @@ specific.
 | Routing | None | Built-in (`Get.to`, named routes) | None | None | None | None |
 | Scope | Reactive values + widget rebuilding only | State + routing + DI + snackbars/dialogs (a full framework) | State + DI (provider graph), no routing/UI helpers | Event/state architecture (BLoC pattern) | Reactive values + actions/reactions, no DI/routing | Reactivity only, multi-platform (not Flutter-specific) |
 | Dependency tracking | Auto (read `.value` during build/`effect()`/`Computed`) | Auto, via `Obx`/`GetX` reading `.value`/`.obs` | Auto, via `ref.watch` inside a `Provider`/`Notifier` | Manual (explicit events → state transitions) | Auto, via `Observer`/reactions reading `@observable` fields | Auto, via signal reads inside an effect/computed |
+| Standalone effects | `effect()` (since 1.3.0), plus workers for the single-observable case | Workers (`ever`, `once`, ...); no generic multi-dependency effect documented | `ref.listen` (per provider) | Event handlers play this role | `autorun`/`reaction`/`when` | `effect()` — its native primitive |
+| Untracked reads | `untracked()` / `.peek()` (since 1.3.0) | Not a documented concept | `ref.read` (one-shot read) | N/A | `untracked` | `untracked()` / `.peek()` |
+| Widget rebuild without a wrapper widget | `watch(context)` (since 1.4.0; lazy post-unmount cleanup — see [advanced.md](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/advanced.md)) | No — `Obx`/`GetX` wrapper widgets | Via base classes (`ConsumerWidget`) rather than a wrapper | No — `BlocBuilder`/`BlocSelector` wrappers | No — `Observer` wrapper widget | Yes — `signal.watch(context)` in `signals_flutter` |
+| Scoped auto-cleanup | `ReactiveScope` + `ScopedObserverMixin`/`ObserverStateMixin` (since 1.4.0) | `GetxController.onClose` (tied to its DI lifecycle) | `autoDispose` providers (tied to the provider graph) | `Bloc.close`, managed by `flutter_bloc` providers | Reaction disposers; no ambient scope documented | Effect disposers + Flutter bindings in `signals_flutter` |
 | Async primitives | `ObservableFuture`/`ObservableStream` (race-safe, generation-counter) | `.obs` + manual async handling | `FutureProvider`/`StreamProvider` | Async event handlers (`on<Event>` with `emit`) | Reactions over async actions | Depends on platform bindings |
 | Diamond-dependency glitches | Prevented by design (two-phase flush, `ARCHITECTURE.md`) | Not a documented guarantee | N/A (providers don't form a `Computed`-chain graph the same way) | N/A (state machine, not a dependency graph) | Prevented by MobX's own reactive core | Prevented by design (its core selling point) |
 | Testability | Plain Dart objects, no widget needed for most tests | `Get.testMode`, widget tests for `Obx` | `ProviderContainer` for unit tests | Well-established (`bloc_test`, `blocTest`) | Plain reactive objects, unit-testable | Plain objects, unit-testable |
@@ -61,12 +65,19 @@ kind of automatic dependency tracking without any code generation step.
 ## signals
 
 The closest philosophical relative: zero-dependency, glitch-free reactivity
-with a small API surface. `signals` is multi-platform Dart (not
-Flutter-specific) with a browser DevTools extension in its ecosystem.
+with a small API surface. As of 1.4.0 the overlap is large on both sides:
+both have `effect()`, `untracked()`, computed values, batching, and a
+widget-level `watch(context)` without a wrapper widget. Where `signals` is
+still ahead, honestly: it is multi-platform Dart (not Flutter-specific)
+with a browser DevTools extension in its ecosystem; its computed graph
+detaches automatically when a computed loses all subscribers, whereas an
+`all_observer` `Computed` stays subscribed until `close()` (or a
+`ReactiveScope` closes it); and its reactive core has years of cross
+-ecosystem (JS/Dart) production mileage behind its scheduling model.
 `all_observer` is Flutter-first (with `package:all_observer/core.dart` as
 its own pure-Dart escape hatch) and ships an `Observer` widget, reactive
-collections, and race-safe async primitives out of the box as part of the
-same package.
+collections, race-safe async primitives, and scoped auto-cleanup out of
+the box as part of the same zero-dependency package.
 
 ## Why choose `all_observer`
 

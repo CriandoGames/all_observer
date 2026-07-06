@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import '../core/batch_scope.dart';
 import '../core/dependency_tracker.dart';
 import '../core/observer_inspector.dart';
+import '../core/reactive_scope.dart';
 import '../core/typedefs.dart';
 import '../errors/observer_error.dart';
 import '../logging/observer_config.dart';
@@ -60,8 +61,21 @@ import '../logging/observer_logger.dart';
 ///
 /// Retorna um [Disposer]: chame-o para impedir que [run] execute de novo e
 /// para cancelar a inscrição em todas as suas dependências atuais.
+///
+/// If a [ReactiveScope] is currently active ([ReactiveScope.current]), the
+/// returned [Disposer] is also registered in it, so disposing the scope
+/// cancels this effect — calling the returned [Disposer] yourself first is
+/// harmless (it is idempotent). Created outside any scope, behavior is
+/// unchanged: the caller alone owns disposal.
+///
+/// Se um [ReactiveScope] estiver ativo ([ReactiveScope.current]), o
+/// [Disposer] retornado também é registrado nele, então descartar o escopo
+/// cancela este effect — chamar você mesmo o [Disposer] retornado antes é
+/// inofensivo (ele é idempotente). Criado fora de qualquer escopo, o
+/// comportamento é o de antes: só quem chama é dono do descarte.
 Disposer effect(void Function() run, {String? name}) {
   final _Effect instance = _Effect(run, name: name);
+  ReactiveScope.current?.add(instance.dispose);
   return instance.dispose;
 }
 

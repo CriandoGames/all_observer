@@ -1,3 +1,52 @@
+## 1.4.0
+
+Additive release — no breaking changes, no new external dependencies.
+
+- **Surgical rebuilds with `watch(context)`:** `observable.watch(context)`
+  (and `computed.watch(context)`) subscribes the calling widget's own
+  `Element` — `Observer` semantics with no wrapper widget. Dependencies are
+  re-discovered per build, multiple watched observables coalesce into one
+  rebuild per batch/frame, rebuild scheduling shares the exact
+  scheduler-phase handling `Observer` uses (extracted into an internal
+  helper), and `onTrack` inspector events fire with a
+  `Watch(<widget runtimeType>)` label. Cleanup is lazy by design (Element
+  has no third-party unmount hook): the first notification after unmount is
+  a guaranteed no-op that releases every subscription of that element —
+  documented in `documentation/*/advanced.md`. In debug, calling `watch`
+  outside `build()` warns (throws `ObserverError` under `strictMode`);
+  inside an `Observer`/`Computed`/`effect` it delegates the read to the
+  active tracking context instead of double-subscribing.
+- **Scoped cleanup with `ReactiveScope`:** an ambient, stack-based disposal
+  scope in the pure-Dart core (exported by both `core.dart` and
+  `all_observer.dart`). Every `Computed`/`CoreComputed`, `effect()` and
+  worker (`ever`/`once`/`debounce`/`interval`) created inside `scope.run(...)`
+  registers its disposer in the scope; `scope.dispose()` tears everything
+  down in LIFO order, idempotently, isolating disposer exceptions. Opt-in:
+  creation outside a scope is unchanged. Nested scopes are disposed with
+  their parent; `add()` on a disposed scope disposes the resource
+  immediately with a debug warning (throws under `strictMode`). Plain
+  `Observable`s are deliberately not captured (no resource to release;
+  documented).
+- **`ScopedObserverMixin`:** pure-Dart controller counterpart of
+  `ObserverStateMixin` — `scoped(fn)`, `autoDispose(disposer)`,
+  `disposeScope()`, `isScopeDisposed`, and the underlying `scope` exposed.
+- **`ObserverStateMixin` internal refactor:** now runs on an internal
+  `ReactiveScope`; public API unchanged, existing suite passes unmodified.
+  Behavioral footnote: disposers now run in reverse registration (LIFO)
+  order — previously registration order — and registering after dispose
+  additionally dispatches a misuse warning (throws under `strictMode`),
+  matching `ReactiveScope.add`.
+- **Inspector:** new `ObserverInspector.onScopeDispose(ScopeDisposeEvent)`
+  event (label + `disposedCount`), with a no-op default implementation like
+  every other event; `RecordingInspector` records it, `ConsoleInspector`
+  stays silent by default (as with `onEffectRun`).
+- **Docs:** new "Surgical rebuilds with `watch(context)`" and "Scoped
+  cleanup with `ReactiveScope`" sections in `advanced.md` (EN/PT-BR),
+  updated comparison table (standalone effects, untracked reads,
+  wrapper-less rebuilds, scoped cleanup), `migration_from_getx.md` gained a
+  "Replacing `onClose` with `ScopedObserverMixin`" section, and both
+  READMEs show a one-line `watch(context)` example.
+
 ## 1.3.2
 
 Documentation/example-only release — no code changes to `lib/`, no breaking

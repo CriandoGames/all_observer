@@ -151,6 +151,25 @@ class EffectEvent extends ObservableEvent {
   EffectEvent(super.label, {super.stackTrace});
 }
 
+/// Emitted when a `ReactiveScope` is disposed, noting how many registered
+/// disposers ran.
+///
+/// Emitido quando um `ReactiveScope` é descartado, anotando quantos
+/// disposers registrados rodaram.
+class ScopeDisposeEvent extends ObservableEvent {
+  /// Creates a scope-dispose event for [label], noting that
+  /// [disposedCount] registered disposers ran.
+  ///
+  /// Cria um evento de descarte de escopo para [label], anotando que
+  /// [disposedCount] disposers registrados rodaram.
+  ScopeDisposeEvent(super.label, this.disposedCount, {super.stackTrace});
+
+  /// Number of registered disposers that ran during this disposal.
+  ///
+  /// Número de disposers registrados que rodaram durante este descarte.
+  final int disposedCount;
+}
+
 /// Pluggable observability hook for `all_observer`. Implement this (or use
 /// the bundled `ConsoleInspector`/[RecordingInspector]) and register
 /// instances via `ObserverConfig.inspectors` to observe every
@@ -203,6 +222,20 @@ abstract class ObserverInspector {
   ///
   /// Chamado toda vez que o corpo de um Effect executa.
   void onEffectRun(EffectEvent event) {}
+
+  /// Called when a `ReactiveScope` is disposed. Default: no-op — same
+  /// pattern as every other event here, so inspectors that `extends` this
+  /// class keep compiling unchanged. (An inspector that `implements` this
+  /// class instead must add the override, exactly as with any event added
+  /// in previous releases, e.g. [onEffectRun] in 1.3.0.)
+  ///
+  /// Chamado quando um `ReactiveScope` é descartado. Padrão: no-op — mesmo
+  /// padrão de todos os outros eventos aqui, então inspectors que fazem
+  /// `extends` desta classe continuam compilando sem mudanças. (Um
+  /// inspector que faz `implements` precisa adicionar o override,
+  /// exatamente como com qualquer evento adicionado em releases
+  /// anteriores, ex.: [onEffectRun] na 1.3.0.)
+  void onScopeDispose(ScopeDisposeEvent event) {}
 }
 
 /// Safely notifies every inspector in [inspectors] of [call], isolating any

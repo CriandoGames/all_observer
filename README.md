@@ -18,6 +18,7 @@ Reactive state for Flutter with zero dependencies — `final count = 0.obs;` +
 - [Installing](#installing)
 - [Counter app step by step](#counter-app-step-by-step)
 - [The building blocks](#the-building-blocks)
+- [Observer vs watch(context) — choosing the right one](#observer-vs-watchcontext--choosing-the-right-one)
 - [Comparison](#comparison)
 - [When to use it (and when not to)](#when-to-use-it-and-when-not-to)
 - [Documentation](#documentation)
@@ -41,7 +42,7 @@ flutter pub add all_observer
 
 ```yaml
 dependencies:
-  all_observer: ^1.3.2
+  all_observer: ^1.4.0
 ```
 
 ```dart
@@ -132,6 +133,18 @@ Observer(() => Text('${count.value}'));
 
 [More about `Observer` here](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/core_concepts.md).
 
+### `watch(context)` — no wrapper needed
+
+Any widget can subscribe its own element directly from `build()`; only
+that widget rebuilds when the value changes.
+
+```dart
+@override
+Widget build(BuildContext context) => Text('${count.watch(context)}');
+```
+
+[More about `watch(context)` (including its lazy-cleanup trade-off) here](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/advanced.md).
+
 ### `Computed`
 
 Lazy, memoized derived value, built on the same tracker `Observer` uses.
@@ -187,6 +200,70 @@ final search = debounce(query, (String value) => runSearch(value),
 Coalesces multiple writes so manual (`listen`/`ever`) subscribers notify once instead of once per write — `Observer` already coalesces rebuilds per frame on its own.
 
 [More about `batch` and diamond dependencies here](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/advanced.md).
+
+## Observer vs watch(context) — choosing the right one
+
+Both use the **exact same dependency tracker** and re-discover dependencies on every build — neither is "smarter" than the other. The difference is where the subscription lives and how much code you write.
+
+### Quick-decision table
+
+| Situation | Reach for |
+|---|---|
+| Small leaf widget whose entire `build()` is reactive | `watch(context)` |
+| One reactive slice inside a large `build()` (e.g. only a `Text` in a `Scaffold`) | `Observer(() => ...)` |
+| Expensive static subtree that should never rebuild | `Observer.withChild(builder:, child:)` |
+| Long-lived global observable read by many short-lived screens | `Observer` (eager `dispose()`) |
+| Reactive value inside an `Observer` builder | `watch(context)` — delegates to the enclosing context, **no double subscription** |
+
+### Side-by-side
+
+```dart
+// watch(context) — the widget subscribes itself, no wrapper
+class CounterText extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Text('${count.watch(context)}');
+}
+
+// Observer — a wrapper widget owns the subscription
+Observer(() => Text('${count.value}'));
+```
+
+Both rebuild **only the widget that read the value**. The practical difference shows up when the `build()` is large:
+
+```dart
+// watch rebuilds the whole Scaffold when count changes
+Widget build(BuildContext context) {
+  final n = count.watch(context); // <-- subscribes this Element
+  return Scaffold(
+    body: Center(child: Text('$n')),
+    // ... 50 other widgets
+  );
+}
+
+// Observer rebuilds only the Text node
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: Center(
+      child: Observer(() => Text('${count.value}')), // <-- only this rebuilds
+    ),
+    // ... 50 other widgets
+  );
+}
+```
+
+### Cleanup behaviour
+
+| | Cleanup timing |
+|---|---|
+| `Observer` | Immediate — `dispose()` unsubscribes on unmount |
+| `watch(context)` | Lazy — the dead subscription is released on the **first notification after unmount** (guaranteed no-op: nothing rebuilds, nothing throws). On an observable that never changes again the inert listener persists — prefer `Observer` for long-lived globals. |
+
+### The rule of thumb
+
+> **Leaf widget, whole `build()` is reactive → `watch(context)`.**  
+> **Reactive slice inside a big `build()`, static subtree, or eager cleanup → `Observer`.**
+
+They are additive and compose freely. A `watch` call inside an `Observer` builder simply reads the value and delegates to the enclosing tracker — no extra subscription is created.
 
 ## Comparison
 

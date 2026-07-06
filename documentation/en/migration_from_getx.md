@@ -17,6 +17,7 @@ that every GetX API has a drop-in replacement.
 | `ever`, `once`, `debounce`, `interval` | Same names: `ever`, `once`, `debounce`, `interval` | Signatures differ slightly — see [workers.md](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/workers.md) |
 | `.value` read/write | `.value` read/write | Direct equivalent |
 | Reactive list/map (`RxList`, `RxMap`) | `ObservableList`, `ObservableMap`, `ObservableSet` | See [collections.md](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/collections.md) |
+| `GetxController.onClose` | `ScopedObserverMixin.disposeScope()` | Workers/`Computed`/`effect`s created via the mixin's scope die in one call — see below |
 | `Get.put`/`Get.find` (DI) | *No equivalent* | Bring your own DI — see below |
 | `Get.to`/`Get.off` (routing) | *No equivalent* | Use Flutter's `Navigator`/`Router` |
 | `Get.snackbar`/dialogs | *No equivalent* | Use `ScaffoldMessenger`/`showDialog` directly |
@@ -48,6 +49,56 @@ class CounterController {
   void dispose() => count.close();
 }
 ```
+
+## Replacing `onClose` with `ScopedObserverMixin`
+
+In GetX, workers created inside a `GetxController` are typically canceled
+in `onClose`, called by GetX's DI when the controller is removed. The
+equivalent here (since 1.4.0) is `ScopedObserverMixin`: everything created
+inside `scoped(...)` — workers, `Computed`s, `effect()`s — is registered
+in an internal `ReactiveScope`, and `disposeScope()` is your `onClose`:
+
+```dart
+// Before (GetX)
+class SearchController extends GetxController {
+  final query = ''.obs;
+  late Worker _debouncer;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _debouncer = debounce(query, runSearch,
+        time: const Duration(milliseconds: 400));
+  }
+
+  @override
+  void onClose() {
+    _debouncer.dispose();
+    super.onClose();
+  }
+}
+
+// After (all_observer) — no worker fields to track by hand
+class SearchController with ScopedObserverMixin {
+  final query = ''.obs;
+
+  SearchController() {
+    scoped(() {
+      debounce(query, runSearch, time: const Duration(milliseconds: 400));
+    });
+  }
+
+  void close() => disposeScope(); // wire to whatever owns this controller
+}
+```
+
+One honest difference: GetX's DI *calls* `onClose` for you when the
+controller leaves memory; `all_observer` has no DI, so whatever owns the
+controller (a `State`'s `dispose`, your DI container's teardown) must call
+`close()`/`disposeScope()`. The bookkeeping inside the controller is what
+the scope eliminates. See the "Scoped cleanup with `ReactiveScope`"
+section in [advanced.md](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/advanced.md)
+for the full contract.
 
 ## What doesn't migrate
 

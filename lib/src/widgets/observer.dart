@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../core/dependency_tracker.dart';
@@ -7,6 +6,7 @@ import '../core/typedefs.dart';
 import '../errors/observer_error.dart';
 import '../logging/observer_config.dart';
 import '../logging/observer_logger.dart';
+import 'rebuild_scheduler.dart';
 
 /// Rebuilds automatically whenever any observable read inside the
 /// [builder] changes its value. Dependencies are re-discovered on every
@@ -128,19 +128,16 @@ class _ObserverState extends State<Observer> {
   }
 
   void _onDependencyChanged() {
-    if (!mounted) {
-      return;
-    }
-    final SchedulerPhase phase = SchedulerBinding.instance.schedulerPhase;
-    if (phase == SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((Duration _) {
-        if (mounted) {
-          setState(() {});
-        }
-      });
-    } else {
-      setState(() {});
-    }
+    // Scheduler-phase handling lives in `scheduleRebuildRespectingPhase`,
+    // shared with `watch(context)` — see that helper's doc.
+    //
+    // O tratamento da fase do scheduler vive em
+    // `scheduleRebuildRespectingPhase`, compartilhado com `watch(context)`
+    // — ver o doc daquele helper.
+    scheduleRebuildRespectingPhase(
+      isMounted: () => mounted,
+      rebuild: () => setState(() {}),
+    );
   }
 
   @override

@@ -1,3 +1,4 @@
+import '../core/reactive_scope.dart';
 import '../core/typedefs.dart';
 import '../observable/observable.dart';
 import '../observable/observable_subscription.dart';
@@ -6,10 +7,26 @@ import 'debouncer.dart';
 /// Handle returned by [ever], [once], [debounce] and [interval], letting
 /// the caller stop listening.
 ///
+/// If a [ReactiveScope] is currently active ([ReactiveScope.current]) when
+/// the worker is created, [dispose] is registered in it, so disposing the
+/// scope also stops the worker — this single registration point covers all
+/// four worker factories. Calling [dispose] yourself first is harmless (it
+/// is idempotent). Created outside any scope, behavior is unchanged: the
+/// caller alone owns disposal.
+///
 /// Handle retornado por [ever], [once], [debounce] e [interval],
 /// permitindo que quem chamou pare de escutar.
+///
+/// Se um [ReactiveScope] estiver ativo ([ReactiveScope.current]) quando o
+/// worker for criado, [dispose] é registrado nele, então descartar o
+/// escopo também encerra o worker — este único ponto de registro cobre as
+/// quatro factories de worker. Chamar você mesmo o [dispose] antes é
+/// inofensivo (ele é idempotente). Criado fora de qualquer escopo, o
+/// comportamento é o de antes: só quem chama é dono do descarte.
 class Worker {
-  Worker._(this._dispose);
+  Worker._(this._dispose) {
+    ReactiveScope.current?.add(dispose);
+  }
 
   final void Function() _dispose;
   bool _disposed = false;

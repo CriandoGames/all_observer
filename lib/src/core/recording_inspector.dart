@@ -75,4 +75,7 @@ class RecordingInspector implements ObserverInspector {
 
   @override
   void onEffectRun(EffectEvent event) => _record(event);
+
+  @override
+  void onScopeDispose(ScopeDisposeEvent event) => _record(event);
 }

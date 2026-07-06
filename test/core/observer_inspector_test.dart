@@ -20,6 +20,12 @@ class _ThrowingInspector implements ObserverInspector {
 
   @override
   void onEffectRun(EffectEvent event) => throw StateError('boom');
+
+  // Required because this test double uses `implements` (not `extends`):
+  // every event added to the interface needs an explicit override here —
+  // same adjustment onEffectRun needed when it was added in 1.3.0.
+  @override
+  void onScopeDispose(ScopeDisposeEvent event) => throw StateError('boom');
 }
 
 void main() {
