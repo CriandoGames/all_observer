@@ -1,3 +1,67 @@
+## 1.5.0 — Engine v2
+
+`all_observer` now runs on its own push-pull reactive graph engine, built
+in-house from the ground up. It's the biggest change under the hood since
+the package's first release — and it costs you nothing: no breaking
+changes, no new dependencies, same public API. Every documented behavior
+contract (glitch-free two-phase batching, in-batch read staleness, eager
+per-flush settling, `equals` filtering, per-listener error isolation,
+inspectors) is preserved, and the pre-existing 286-test suite passes
+unmodified.
+
+Why it matters: the new engine is O(1) on link/unlink, reuses links across
+re-tracks with zero allocation when your dependency set doesn't change, and
+propagates fully iteratively — so deeply nested reactive graphs are bounded
+by available heap instead of the call stack. It also now ships as its own
+public entry point, so you can build a custom reactive layer directly on
+top of the same core engine that powers `all_observer` itself.
+
+- **New public entry point `package:all_observer/engine.dart`:** a
+  standalone, pure-Dart, policy-free reactive graph engine
+  (`ReactiveEngine`, `ReactiveNode`, `ReactiveLink`, `ReactiveFlags`)
+  designed for third parties to build their own reactive layers on — the
+  same machinery `all_observer` itself now runs on. Dependencies are
+  intrusive doubly-linked lists (O(1) link/unlink, links reused in place
+  across re-tracks — zero allocation when the read set doesn't change),
+  node state is bit flags in a single `int` (via a zero-cost
+  `extension type`), and both propagation phases are fully iterative
+  (explicit stack), so graph depth is bounded by heap instead of the call
+  stack. Behavior is delegated to three hooks: `update` (recompute; its
+  `bool` return is the propagation cut), `notify` (schedule a watcher) and
+  `unwatched` (last-subscriber cleanup). Tutorial in
+  `documentation/*/engine.md`; a minimal, runnable signals implementation
+  built on it lives in `test/engine/fixtures/mini_preset.dart`.
+- **`CoreComputed` rewired onto the engine** (`lib/src/core/engine_bridge
+  .dart`, exported by `core.dart`): dependency tracking moved from
+  per-recompute registry subscriptions (clear-all + resubscribe, one
+  closure disposer per dependency per run) to engine links, and
+  invalidation became push-pull — a flushed notification only marks
+  dependents stale (`ListenerRegistry.notifyAll` → `propagate`), and an
+  internal `WatcherNode` (created on first evaluation, kept until
+  `close()`) pulls the fresh value in phase 2 of the same `BatchScope`
+  flush as always. Reads landing between marking and settling resolve
+  lazily on the spot (`checkDirty`), which also settles deep computed
+  cascades within a single flush wave instead of one wave per graph level.
+  Integration rides entirely on `DependencyTracker.reportRead` and
+  `ListenerRegistry.notifyAll`/`notifyOrQueue`, so `CoreObservable`,
+  `BatchScope`, collections, async, workers and widgets are untouched.
+  See ADR-0003 in `ARCHITECTURE.md`.
+- **`Observable.hasListeners` now also counts engine-graph dependents**
+  (a `Computed` depending on the observable), preserving its long-standing
+  meaning now that computeds are no longer plain registry listeners.
+- **Self-dependency detection:** a `Computed` whose `compute()` reads its
+  own `value` (directly or through a chain) now throws a descriptive
+  `ObserverCycleError` instead of overflowing the call stack.
+- **`TrackingContext` gained a `subscribes` flag** (default `true`,
+  source-compatible): a recomputing `CoreComputed` pushes a
+  non-subscribing context, keeping outer-context isolation, read counting
+  and `onTrack` inspector events while the engine handles invalidation.
+- **Engine test suites:** `test/engine/` (graph semantics: lazy pull,
+  propagation cut via custom `equals`, link reuse identity, conditional
+  branch switching, 50k-deep chains without stack overflow, batching,
+  automatic `unwatched` cleanup) and `test/core/engine_bridge_test.dart`
+  (bridge semantics against the package contracts).
+
 ## 1.4.0
 
 Additive release — no breaking changes, no new external dependencies.

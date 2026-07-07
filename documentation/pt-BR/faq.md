@@ -106,4 +106,4 @@ observável no seu próprio isolate.
 
 ---
 
-Voltar ao [README](https://github.com/CriandoGames/all_observer/blob/main/README.pt-BR.md) · Anterior: [Migrando do GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/migration_from_getx.md)
+Voltar ao [README](https://github.com/CriandoGames/all_observer/blob/main/README.pt-BR.md) · Anterior: [Migrando do GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/migration_from_getx.md) · Próximo: [Tutoriais](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/tutorials.md)
