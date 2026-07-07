@@ -74,10 +74,36 @@ class ListenerRegistry {
   /// Número de listeners atualmente anexados.
   int get length => _listeners.length;
 
-  /// Whether there is at least one listener attached.
+  /// Whether there is at least one interested party attached — a plain
+  /// listener, or (engine v2) a `CoreComputed` depending on this registry
+  /// through the engine graph. Before the engine, computeds subscribed
+  /// here as regular listeners, so counting engine dependents preserves
+  /// the long-standing meaning of `Observable.hasListeners` (e.g. "did the
+  /// computed unsubscribe from the dropped branch / on close?").
   ///
-  /// Se há ao menos um listener anexado.
-  bool get hasListeners => _listeners.isNotEmpty;
+  /// Se há ao menos um interessado anexado — um listener comum, ou (motor
+  /// v2) um `CoreComputed` dependendo deste registry pelo grafo do motor.
+  /// Antes do motor, computeds se inscreviam aqui como listeners comuns,
+  /// então contar os dependentes do motor preserva o significado de longa
+  /// data de `Observable.hasListeners` (ex.: "o computed se desinscreveu
+  /// do branch abandonado / no close?").
+  bool get hasListeners => _listeners.isNotEmpty || hasEngineSubscribers;
+
+  /// Whether any engine-graph subscriber is currently linked to this
+  /// registry's [RegistrySignalNode]. `false` for registries that were
+  /// never read inside a computed (no engine node exists) and for a
+  /// computed's own registry (whose node is a `ComputedEngineNode` — its
+  /// dependents are tracked by the computed itself).
+  ///
+  /// Se algum subscriber do grafo do motor está atualmente ligado ao
+  /// [RegistrySignalNode] deste registry. `false` para registries nunca
+  /// lidos dentro de um computed (nenhum nó do motor existe) e para o
+  /// registry do próprio computed (cujo nó é um `ComputedEngineNode` — os
+  /// dependentes dele são rastreados pelo próprio computed).
+  bool get hasEngineSubscribers {
+    final ReactiveNode? node = engineNode;
+    return node is RegistrySignalNode && node.subs != null;
+  }
 
   /// Adds [listener] if it is not already present and returns a [Disposer]
   /// that removes it.
@@ -267,10 +293,9 @@ class ListenerRegistry {
     // quando o flush de fato entrega esta notificação — assim um Computed
     // lido com um batch ainda aberto continua vendo o valor pré-batch,
     // exatamente como qualquer outra notificação adiada.
-    final ReactiveNode? node = engineNode;
-    final bool hasEngineSubs = node is RegistrySignalNode && node.subs != null;
-    if (!hasListeners && !hasEngineSubs) {
-      return;
+    if (!hasListeners) {
+      return; // [hasListeners] already counts engine subscribers / já conta
+      //          os subscribers do motor
     }
     // Wrap in a micro-batch so that even a single standalone write goes
     // through the two-phase flush: registries first, Computeds second.
