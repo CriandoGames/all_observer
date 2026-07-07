@@ -1,4 +1,6 @@
+import '../engine/reactive_engine.dart';
 import '../logging/observer_config.dart';
+import 'engine_bridge.dart';
 import 'listener_registry.dart';
 import 'observer_inspector.dart';
 import 'typedefs.dart';
@@ -18,13 +20,29 @@ class TrackingContext {
   /// para [onDependencyChanged]. [ownerLabel], se fornecido, identifica o
   /// Observer/Computed/Effect que está rastreando, para eventos
   /// `ObserverInspector.onTrack`.
-  TrackingContext(this.onDependencyChanged, {this.ownerLabel});
+  TrackingContext(this.onDependencyChanged, {this.ownerLabel, this.subscribes = true});
 
   /// Invoked when any observable read during this context later changes.
   ///
   /// Invocado quando qualquer observável lido durante este contexto mudar
   /// posteriormente.
   final ObserverVoidCallback onDependencyChanged;
+
+  /// Whether reads inside this context subscribe [onDependencyChanged] to
+  /// each read registry (the classic Observer/effect behavior). A
+  /// recomputing `CoreComputed` (engine v2) pushes a non-subscribing
+  /// context: it still isolates outer contexts, counts reads and emits
+  /// `onTrack` events, but invalidation is handled by the engine graph, so
+  /// no registry listeners are registered (and none need disposal).
+  ///
+  /// Se leituras dentro deste contexto inscrevem [onDependencyChanged] em
+  /// cada registry lido (o comportamento clássico de Observer/effect). Um
+  /// `CoreComputed` recomputando (motor v2) empilha um contexto
+  /// não-inscritor: ele ainda isola contextos externos, conta leituras e
+  /// emite eventos `onTrack`, mas a invalidação é tratada pelo grafo do
+  /// motor, então nenhum listener de registry é registrado (e nenhum
+  /// precisa de descarte).
+  final bool subscribes;
 
   /// Debug label of the Observer/Computed/Effect that owns this context, if
   /// known. Only used to populate `ObserverInspector.onTrack` events — has
@@ -181,6 +199,27 @@ abstract final class DependencyTracker {
   /// ser executado quando [registry] notificar — um observável nunca deve
   /// se registrar como seu próprio listener.
   static void reportRead(ListenerRegistry registry, {String? label}) {
+    if (_suspendDepth > 0) {
+      return; // untracked(): no context AND no engine link / sem link no motor
+    }
+    // Engine path (engine v2): while a CoreComputed is recomputing, every
+    // read links this registry's engine node as a dependency of it. The
+    // node is created lazily, so registries never read inside a computed
+    // pay nothing.
+    //
+    // Caminho do motor (motor v2): enquanto um CoreComputed recomputa, cada
+    // leitura liga o nó de motor deste registry como dependência dele. O nó
+    // é criado preguiçosamente, então registries nunca lidos dentro de um
+    // computed não pagam nada.
+    final ObserverEngine engine = ObserverEngine.instance;
+    final ReactiveNode? engineSub = engine.activeSub;
+    if (engineSub != null) {
+      engine.link(
+        registry.engineNode ??= RegistrySignalNode(),
+        engineSub,
+        engine.cycle,
+      );
+    }
     final TrackingContext? context = current;
     if (context == null) {
       return;
@@ -189,8 +228,10 @@ abstract final class DependencyTracker {
     if (context._hasSeen(registry)) {
       return;
     }
-    final Disposer disposer = registry.add(context.onDependencyChanged);
-    context.disposers.add(disposer);
+    if (context.subscribes) {
+      final Disposer disposer = registry.add(context.onDependencyChanged);
+      context.disposers.add(disposer);
+    }
     if (label != null) {
       context.trackedLabels.add(label);
       if (context.ownerLabel != null) {

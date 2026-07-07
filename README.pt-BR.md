@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![pub points](https://img.shields.io/pub/points/all_observer?label=pub%20points)](https://pub.dev/packages/all_observer/score)
-![225 testes](https://img.shields.io/badge/tests-225-brightgreen)
+![286 testes](https://img.shields.io/badge/tests-225-brightgreen)
 
 Estado reativo para Flutter sem dependências — `final count = 0.obs;` +
 `Observer(...)` e pronto.
@@ -42,7 +42,7 @@ flutter pub add all_observer
 
 ```yaml
 dependencies:
-  all_observer: ^1.4.0
+  all_observer: ^1.5.0
 ```
 
 ```dart
@@ -304,6 +304,7 @@ deles.
 - [Comparação](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/comparison.md) — comparação detalhada com GetX, Riverpod, Bloc, MobX, signals.
 - [Migrando do GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/migration_from_getx.md).
 - [FAQ](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/faq.md) — troubleshooting e perguntas frequentes.
+- [Tutoriais](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/tutorials.md) — quatro exemplos pequenos: botão com estado, tela de loading, tela de login, lista infinita.
 
 ## Outros pacotes nossos
 

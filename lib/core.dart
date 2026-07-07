@@ -38,6 +38,11 @@ export 'src/core/core_error_reporting.dart';
 export 'src/core/core_computed.dart';
 export 'src/core/core_observable.dart';
 export 'src/core/dependency_tracker.dart';
+// Engine v2: the package's preset over `package:all_observer/engine.dart`
+// (the raw engine itself stays in its own entry point).
+// Motor v2: o preset do pacote sobre `package:all_observer/engine.dart`
+// (o motor cru em si continua no próprio ponto de entrada).
+export 'src/core/engine_bridge.dart';
 export 'src/core/listener_registry.dart';
 export 'src/core/observable_store.dart';
 export 'src/core/observer_inspector.dart';

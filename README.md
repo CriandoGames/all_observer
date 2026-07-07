@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![pub points](https://img.shields.io/pub/points/all_observer?label=pub%20points)](https://pub.dev/packages/all_observer/score)
-![225 tests](https://img.shields.io/badge/tests-225-brightgreen)
+![286 tests](https://img.shields.io/badge/tests-225-brightgreen)
 
 Reactive state for Flutter with zero dependencies — `final count = 0.obs;` +
 `Observer(...)` and you're done.
@@ -42,7 +42,7 @@ flutter pub add all_observer
 
 ```yaml
 dependencies:
-  all_observer: ^1.4.0
+  all_observer: ^1.5.0
 ```
 
 ```dart
@@ -303,6 +303,7 @@ how it *notifies*, so it composes with any of them.
 - [Comparison](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/comparison.md) — detailed comparison vs GetX, Riverpod, Bloc, MobX, signals.
 - [Migrating from GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/migration_from_getx.md).
 - [FAQ](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/faq.md) — troubleshooting and common questions.
+- [Tutorials](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/tutorials.md) — four small examples: a toggle button, a loading screen, a login screen, an infinite list.
 
 ## Other packages by us
 

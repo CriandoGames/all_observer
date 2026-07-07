@@ -1,8 +1,10 @@
 import 'dart:collection' show LinkedHashSet;
 
+import '../engine/reactive_engine.dart';
 import '../errors/observer_cycle_error.dart';
 import 'batch_scope.dart';
 import 'core_error_reporting.dart';
+import 'engine_bridge.dart';
 import 'typedefs.dart';
 
 // Note: this file intentionally does not import `dart:ui` or
@@ -48,15 +50,60 @@ class ListenerRegistry {
   final LinkedHashSet<ObserverVoidCallback> _listeners =
       LinkedHashSet<ObserverVoidCallback>();
 
+  /// The engine-graph identity of this registry, if any (engine v2).
+  ///
+  /// Lazily assigned by `DependencyTracker.reportRead` (a
+  /// [RegistrySignalNode]) the first time this registry is read inside a
+  /// recomputing `CoreComputed`, or pre-assigned by `CoreComputed` itself
+  /// (its [ComputedEngineNode]) so that reads of a computed link to the
+  /// computed's own node. `null` until then — registries never read inside
+  /// a computed pay zero engine cost.
+  ///
+  /// A identidade deste registry no grafo do motor, se houver (motor v2).
+  ///
+  /// Atribuído preguiçosamente por `DependencyTracker.reportRead` (um
+  /// [RegistrySignalNode]) na primeira vez que este registry é lido dentro
+  /// de um `CoreComputed` recomputando, ou pré-atribuído pelo próprio
+  /// `CoreComputed` (seu [ComputedEngineNode]) para que leituras de um
+  /// computed liguem ao nó do próprio computed. `null` até lá — registries
+  /// nunca lidos dentro de um computed pagam custo zero de motor.
+  ReactiveNode? engineNode;
+
   /// Number of listeners currently attached.
   ///
   /// Número de listeners atualmente anexados.
   int get length => _listeners.length;
 
-  /// Whether there is at least one listener attached.
+  /// Whether there is at least one interested party attached — a plain
+  /// listener, or (engine v2) a `CoreComputed` depending on this registry
+  /// through the engine graph. Before the engine, computeds subscribed
+  /// here as regular listeners, so counting engine dependents preserves
+  /// the long-standing meaning of `Observable.hasListeners` (e.g. "did the
+  /// computed unsubscribe from the dropped branch / on close?").
   ///
-  /// Se há ao menos um listener anexado.
-  bool get hasListeners => _listeners.isNotEmpty;
+  /// Se há ao menos um interessado anexado — um listener comum, ou (motor
+  /// v2) um `CoreComputed` dependendo deste registry pelo grafo do motor.
+  /// Antes do motor, computeds se inscreviam aqui como listeners comuns,
+  /// então contar os dependentes do motor preserva o significado de longa
+  /// data de `Observable.hasListeners` (ex.: "o computed se desinscreveu
+  /// do branch abandonado / no close?").
+  bool get hasListeners => _listeners.isNotEmpty || hasEngineSubscribers;
+
+  /// Whether any engine-graph subscriber is currently linked to this
+  /// registry's [RegistrySignalNode]. `false` for registries that were
+  /// never read inside a computed (no engine node exists) and for a
+  /// computed's own registry (whose node is a `ComputedEngineNode` — its
+  /// dependents are tracked by the computed itself).
+  ///
+  /// Se algum subscriber do grafo do motor está atualmente ligado ao
+  /// [RegistrySignalNode] deste registry. `false` para registries nunca
+  /// lidos dentro de um computed (nenhum nó do motor existe) e para o
+  /// registry do próprio computed (cujo nó é um `ComputedEngineNode` — os
+  /// dependentes dele são rastreados pelo próprio computed).
+  bool get hasEngineSubscribers {
+    final ReactiveNode? node = engineNode;
+    return node is RegistrySignalNode && node.subs != null;
+  }
 
   /// Adds [listener] if it is not already present and returns a [Disposer]
   /// that removes it.
@@ -112,6 +159,32 @@ class ListenerRegistry {
   /// [kMaxNotificationDepth] notificações aninhadas, esta chamada para de
   /// recursar e reporta um [ObserverCycleError] em vez de estourar a pilha.
   void notifyAll() {
+    // Engine push (engine v2): if any CoreComputed depends on this registry
+    // through the engine graph, mark the change and propagate staleness
+    // flags now — at delivery time, so in-batch reads stayed stale until
+    // this moment. Watching nodes get scheduled into the current flush's
+    // phase 2 (`BatchScope.queueDirtyFlush`), where deferred recomputes
+    // always ran. Only [RegistrySignalNode]s propagate here — a computed's
+    // own registry carries a [ComputedEngineNode], whose engine propagation
+    // is handled by the computed itself when it recomputes.
+    //
+    // Push do motor (motor v2): se algum CoreComputed depende deste
+    // registry pelo grafo do motor, marca a mudança e propaga as flags de
+    // obsolescência agora — no momento da entrega, então leituras dentro do
+    // batch permaneceram obsoletas até este instante. Nós watching são
+    // agendados na fase 2 do flush atual (`BatchScope.queueDirtyFlush`),
+    // onde os recomputes adiados sempre rodaram. Só [RegistrySignalNode]s
+    // propagam aqui — o registry de um computed carrega um
+    // [ComputedEngineNode], cuja propagação no motor é feita pelo próprio
+    // computed ao recomputar.
+    final ReactiveNode? engineNode = this.engineNode;
+    if (engineNode is RegistrySignalNode) {
+      final ReactiveLink? engineSubs = engineNode.subs;
+      if (engineSubs != null) {
+        engineNode.flags = ReactiveFlags.mutableDirty;
+        ObserverEngine.instance.propagate(engineSubs);
+      }
+    }
     if (_listeners.isEmpty) {
       return;
     }
@@ -207,11 +280,22 @@ class ListenerRegistry {
       BatchScope.queue(this);
       return;
     }
-    // Fast-path: no listeners → nothing to do, skip the micro-batch overhead.
-    // Caminho rápido: sem listeners → nada a fazer, evita o overhead do
-    // micro-batch.
+    // Fast-path: no listeners and no engine subscribers → nothing to do,
+    // skip the micro-batch overhead. Engine staleness marking (engine v2)
+    // happens inside [notifyAll], i.e. only when the flush actually
+    // delivers this notification — so a Computed read while a batch is
+    // still open keeps seeing the pre-batch value, exactly like any other
+    // deferred notification.
+    //
+    // Caminho rápido: sem listeners e sem subscribers no motor → nada a
+    // fazer, evita o overhead do micro-batch. A marcação de obsolescência
+    // do motor (motor v2) acontece dentro de [notifyAll], isto é, apenas
+    // quando o flush de fato entrega esta notificação — assim um Computed
+    // lido com um batch ainda aberto continua vendo o valor pré-batch,
+    // exatamente como qualquer outra notificação adiada.
     if (!hasListeners) {
-      return;
+      return; // [hasListeners] already counts engine subscribers / já conta
+      //          os subscribers do motor
     }
     // Wrap in a micro-batch so that even a single standalone write goes
     // through the two-phase flush: registries first, Computeds second.

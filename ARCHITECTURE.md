@@ -109,6 +109,43 @@ most `T`). The tradeoff is that `T`'s `==` must be meaningful; types where
 it isn't (e.g. comparing only a subset of fields) should pass a custom
 `equals` callback to the `Computed`/`Observable` constructor.
 
+### ADR-0003: Engine v2 — computeds movidos para um grafo push-pull próprio
+
+**Context.** ADR-0001 rejected per-node versioning "without cause". The
+cause arrived: the goal of opening the core for third parties, plus the
+comparative engine study in `documentation/estudo-motor-v2.md`. `Computed`
+tracking via per-recompute registry subscriptions (clear-all + resubscribe,
+one closure disposer per dep per run) allocates on every recompute, and the
+recursive notification model caps legitimate graph depth at
+`kMaxNotificationDepth`.
+
+**Decision.** A public, policy-free engine of our own
+(`package:all_observer/engine.dart`, `lib/src/engine/reactive_engine.dart`
+— intrusive doubly-linked dependency lists, single-int bit flags, fully
+iterative propagate/checkDirty; see the license note in that file's header)
+plus the package preset that binds it (`lib/src/core/engine_bridge.dart`).
+`CoreComputed` now tracks dependencies as engine links (reused in place
+across recomputes) and is invalidated push-pull: a flushed notification
+marks it stale via `ListenerRegistry.notifyAll` → `propagate`, and an
+internal `WatcherNode` (created on first evaluation, kept until `close()`)
+pulls the fresh value through the same `BatchScope.queueDirtyFlush` phase
+as before — so the two-phase glitch-free flush of ADR-0001, in-batch read
+staleness, and eager per-flush settling are all observably unchanged.
+`equals` filtering (ADR-0002) becomes the engine's propagation cut
+(`update()` returning `false`).
+
+**Consequences.** `CoreObservable`, `BatchScope`, collections, async,
+widgets and `effect()` are untouched (integration rides entirely on
+`reportRead`/`notifyAll`/`notifyOrQueue`). Reads that land between marking
+and settling resolve lazily on the spot (`checkDirty`), which also settles
+deep cascades within a single flush wave instead of one wave per graph
+level. One deliberate deviation: a computed whose `compute()` reads its own
+`value` now throws a descriptive `ObserverCycleError` instead of
+overflowing the stack. Dependency links are deliberately *kept* when
+listeners detach (see `CoreComputed._onEngineUnwatched`) to avoid recompute
+churn from `Observer`/`effect` re-tracking; `close()` releases them, as
+always.
+
 ## Cycle guards
 
 Two independent depth/wave limits exist, guarding two different shapes of

@@ -99,4 +99,4 @@ on its own isolate.
 
 ---
 
-Back to [README](https://github.com/CriandoGames/all_observer/blob/main/README.md) · Previous: [Migrating from GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/migration_from_getx.md)
+Back to [README](https://github.com/CriandoGames/all_observer/blob/main/README.md) · Previous: [Migrating from GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/migration_from_getx.md) · Next: [Tutorials](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/tutorials.md)
