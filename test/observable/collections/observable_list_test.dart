@@ -161,4 +161,120 @@ void main() {
       expect(items, <int>[1]);
     });
   });
+
+  group('ObservableList factory constructors', () {
+    test('filled creates a list of the given length with every position '
+        'set to fill', () {
+      final ObservableList<int> items = ObservableList<int>.filled(3, 7);
+      expect(items, <int>[7, 7, 7]);
+    });
+
+    test('empty creates an empty, growable list', () {
+      final ObservableList<int> items = ObservableList<int>.empty(
+        growable: true,
+      );
+      expect(items, isEmpty);
+      expect(() => items.add(1), returnsNormally);
+      expect(items, <int>[1]);
+    });
+
+    test('from copies elements out of a dynamic iterable', () {
+      final ObservableList<int> items = ObservableList<int>.from(<int>[
+        1,
+        2,
+        3,
+      ]);
+      expect(items, <int>[1, 2, 3]);
+    });
+
+    test('of copies elements out of a typed iterable', () {
+      final ObservableList<int> items = ObservableList<int>.of(<int>[4, 5]);
+      expect(items, <int>[4, 5]);
+    });
+
+    test('generate builds a list from an index-based generator', () {
+      final ObservableList<int> items = ObservableList<int>.generate(
+        4,
+        (int i) => i * i,
+      );
+      expect(items, <int>[0, 1, 4, 9]);
+    });
+
+    test('unmodifiable creates a list that reads normally but throws on '
+        'mutation', () {
+      final ObservableList<int> items = ObservableList<int>.unmodifiable(
+        <int>[1, 2],
+      );
+      expect(items, <int>[1, 2]);
+      expect(() => items.add(3), throwsUnsupportedError);
+    });
+
+    test('factories still notify listeners on later mutation', () {
+      final ObservableList<int> items = ObservableList<int>.filled(
+        2,
+        0,
+        growable: true,
+      );
+      int calls = 0;
+      items.listen(() => calls++);
+      items.add(1);
+      expect(calls, 1);
+    });
+  });
+
+  group('ObservableList convenience mutators', () {
+    test('assign replaces every element and notifies exactly once', () {
+      final ObservableList<int> items = ObservableList<int>(<int>[1, 2, 3]);
+      int calls = 0;
+      items.listen(() => calls++);
+      items.assign(9);
+      expect(calls, 1);
+      expect(items, <int>[9]);
+    });
+
+    test('assignAll replaces every element and notifies exactly once', () {
+      final ObservableList<int> items = ObservableList<int>(<int>[1, 2, 3]);
+      int calls = 0;
+      items.listen(() => calls++);
+      items.assignAll(<int>[4, 5]);
+      expect(calls, 1);
+      expect(items, <int>[4, 5]);
+    });
+
+    test('assign on an already-closed list is a silent no-op', () {
+      final ObservableList<int> items = ObservableList<int>(<int>[1, 2]);
+      items.close();
+      expect(() => items.assign(9), returnsNormally);
+      expect(items, <int>[1, 2]);
+    });
+
+    test('addIf adds only when condition is true', () {
+      final ObservableList<int> items = ObservableList<int>();
+      items.addIf(true, 1);
+      items.addIf(false, 2);
+      expect(items, <int>[1]);
+    });
+
+    test('addAllIf adds only when condition is true', () {
+      final ObservableList<int> items = ObservableList<int>();
+      items.addAllIf(false, <int>[1, 2]);
+      items.addAllIf(true, <int>[3, 4]);
+      expect(items, <int>[3, 4]);
+    });
+
+    test('addIfNotNull skips null and adds non-null values', () {
+      final ObservableList<int?> items = ObservableList<int?>();
+      items.addIfNotNull(null);
+      items.addIfNotNull(5);
+      expect(items, <int?>[5]);
+    });
+
+    test('addIf with false condition does not notify listeners', () {
+      final ObservableList<int> items = ObservableList<int>();
+      int calls = 0;
+      items.listen(() => calls++);
+      items.addIf(false, 1);
+      expect(calls, 0);
+    });
+  });
 }

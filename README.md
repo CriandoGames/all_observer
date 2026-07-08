@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![pub points](https://img.shields.io/pub/points/all_observer?label=pub%20points)](https://pub.dev/packages/all_observer/score)
-![286 tests](https://img.shields.io/badge/tests-225-brightgreen)
+![300 tests](https://img.shields.io/badge/tests-225-brightgreen)
 
 Reactive state for Flutter with zero dependencies — `final count = 0.obs;` +
 `Observer(...)` and you're done.
@@ -42,7 +42,7 @@ flutter pub add all_observer
 
 ```yaml
 dependencies:
-  all_observer: ^1.5.0
+  all_observer: ^1.5.1
 ```
 
 ```dart
@@ -164,6 +164,9 @@ Observer(() => Text(fullName.value)); // recomputes only when needed
 final items = <String>[].obs;
 Observer(() => Text('${items.length} items'));
 items.addAll(['one', 'two']); // notifies once, not twice
+
+items.insertAll(1, ['one and a half', 'one and three quarters']); // notifies once
+final startsWithOne = items.where((e) => e.startsWith('one')); // read, no mutation
 ```
 
 [More about collections here](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/collections.md).
