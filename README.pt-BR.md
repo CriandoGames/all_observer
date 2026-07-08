@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![pub points](https://img.shields.io/pub/points/all_observer?label=pub%20points)](https://pub.dev/packages/all_observer/score)
-![286 testes](https://img.shields.io/badge/tests-225-brightgreen)
+![300 testes](https://img.shields.io/badge/tests-225-brightgreen)
 
 Estado reativo para Flutter sem dependências — `final count = 0.obs;` +
 `Observer(...)` e pronto.
@@ -42,7 +42,7 @@ flutter pub add all_observer
 
 ```yaml
 dependencies:
-  all_observer: ^1.5.0
+  all_observer: ^1.5.1
 ```
 
 ```dart
@@ -164,6 +164,9 @@ Observer(() => Text(fullName.value)); // recalcula só quando necessário
 final items = <String>[].obs;
 Observer(() => Text('${items.length} itens'));
 items.addAll(['um', 'dois']); // notifica uma vez, não duas
+
+items.insertAll(1, ['dois e meio', 'dois e três quartos']); // notifica uma vez
+final pares = items.where((e) => e.startsWith('dois')); // leitura, sem mutação
 ```
 
 [Mais sobre coleções aqui](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/collections.md).

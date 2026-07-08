@@ -1,3 +1,21 @@
+## 1.5.1
+
+- **`ObservableList<E>` gained factory constructors** mirroring `List`'s
+  static equivalents: `.filled`, `.empty`, `.from`, `.of`, `.generate`,
+  `.unmodifiable`. All accept an optional `name` for the debug label.
+  Internally they route through a new private `_owned` constructor that
+  takes ownership of an already-fresh list instead of copying it again,
+  so these factories don't pay for an extra allocation on top of the one
+  `List.filled`/`.generate`/etc. already did.
+- **`ObservableList<E>` gained convenience mutators:** `assign`/`assignAll`
+  (replace every element, notifying exactly once instead of once for an
+  implicit `clear()` plus once for the `add`/`addAll`), `addIf`/`addAllIf`
+  (add only when a `bool` condition is `true`), and `addIfNotNull` (add
+  only when the value isn't `null`). All respect the same closed-collection
+  no-op semantics as every other mutating member.
+- No breaking changes. Documented in `documentation/*/collections.md`;
+  covered by new tests in `test/observable/collections/observable_list_test.dart`.
+
 ## 1.5.0 — Engine v2
 
 `all_observer` now runs on its own push-pull reactive graph engine, built
