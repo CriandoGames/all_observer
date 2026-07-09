@@ -1,3 +1,17 @@
+## 1.5.2
+
+- Added `ObsBool`, `ObsInt`, `ObsDouble`, and `ObsString` as lightweight
+  `typedef` aliases for common `Observable<T>` types. They preserve the
+  complete `Observable` constructor and behavior without adding classes.
+- Documented custom logging with `ObserverInspector`, including multiple
+  inspectors, external log sinks, optional stack traces, exception isolation,
+  and `RecordingInspector` audit trails.
+- Added regression coverage for Observer lifecycle and subscription cleanup,
+  closed observables, collection notifications, `ReactiveScope` disposal,
+  `CoreComputed` dependency cleanup, high-frequency updates, and custom
+  inspectors.
+- No breaking changes.
+
 ## 1.5.1
 
 - **`ObservableList<E>` gained factory constructors** mirroring `List`'s

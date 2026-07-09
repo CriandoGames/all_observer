@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![pub points](https://img.shields.io/pub/points/all_observer?label=pub%20points)](https://pub.dev/packages/all_observer/score)
-![300 tests](https://img.shields.io/badge/tests-225-brightgreen)
+![322 tests](https://img.shields.io/badge/tests-225-brightgreen)
 
 Reactive state for Flutter with zero dependencies — `final count = 0.obs;` +
 `Observer(...)` and you're done.
@@ -44,7 +44,7 @@ flutter pub add all_observer
 
 ```yaml
 dependencies:
-  all_observer: ^1.5.1
+  all_observer: ^1.5.2
 ```
 
 ```dart
