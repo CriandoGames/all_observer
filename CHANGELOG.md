@@ -1,3 +1,22 @@
+## 1.5.3
+
+Patch release focused on async safety and regression hardening.
+
+- `ObservableStream.run()` now converts exceptions thrown synchronously by
+  `streamFactory` into `AsyncError`, matching `ObservableFuture`.
+- Failures returned asynchronously by `StreamSubscription.cancel()` are
+  isolated and reported through `CoreErrorReporting`.
+- Added deterministic graph fuzzing, 20,000-cycle memory-retention stress,
+  collection model tests, lifecycle/churn coverage, public-entrypoint smoke
+  tests, and broad relative performance guards.
+- Added a web release build of the example app to CI, including Flutter's
+  Wasm compatibility dry run.
+- **Behavior change:** synchronous exceptions from `streamFactory` no longer
+  escape from `ObservableStream.run()`. Consumers that previously caught that
+  exception with `try/catch` must now handle it through the emitted
+  `AsyncError`. Public API signatures and reactive-engine behavior are
+  unchanged.
+
 ## 1.5.2
 
 - Added `ObsBool`, `ObsInt`, `ObsDouble`, and `ObsString` as lightweight

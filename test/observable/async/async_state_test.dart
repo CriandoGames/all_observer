@@ -84,6 +84,54 @@ void main() {
       expect(matched, 'data:5');
     });
 
+    test('maybeWhen dispatches loading, data and error handlers', () {
+      const AsyncState<int> loading = AsyncLoading<int>(previousData: 3);
+      const AsyncState<int> data = AsyncData<int>(7);
+      final StackTrace stackTrace = StackTrace.current;
+      final AsyncState<int> error = AsyncError<int>('boom', stackTrace);
+
+      expect(
+        loading.maybeWhen(
+          loading: (int? previous) => 'loading:$previous',
+          orElse: () => 'else',
+        ),
+        'loading:3',
+      );
+      expect(
+        data.maybeWhen(
+          data: (int value) => 'data:$value',
+          orElse: () => 'else',
+        ),
+        'data:7',
+      );
+      expect(
+        error.maybeWhen(
+          error: (Object value, StackTrace trace) =>
+              'error:$value:${identical(trace, stackTrace)}',
+          orElse: () => 'else',
+        ),
+        'error:boom:true',
+      );
+    });
+
+    test('equal states have equal hash codes and stable diagnostics', () {
+      final StackTrace stackTrace = StackTrace.fromString('test trace');
+      const AsyncLoading<int> loading = AsyncLoading<int>(previousData: 1);
+      const AsyncData<int> data = AsyncData<int>(42);
+      final AsyncError<int> error = AsyncError<int>('boom', stackTrace);
+
+      expect(
+        loading.hashCode,
+        const AsyncLoading<int>(previousData: 1).hashCode,
+      );
+      expect(data.hashCode, const AsyncData<int>(42).hashCode);
+      expect(error.hashCode, AsyncError<int>('boom', stackTrace).hashCode);
+
+      expect(loading.toString(), contains('previousData: 1'));
+      expect(data.toString(), contains('42'));
+      expect(error.toString(), contains('boom'));
+    });
+
     test('AsyncValue is a plain alias for AsyncState', () {
       const AsyncValue<int> value = AsyncData<int>(1);
       expect(value, isA<AsyncState<int>>());

@@ -1,5 +1,11 @@
 # Benchmark results
 
+`performance_guard_test.dart` now runs deterministic, broad relative guards
+in CI for scalar `Observable` overhead and `ObservableList.addAll`. These are
+debug-mode catastrophe guards, not release-performance targets. The manual
+timing benchmarks described below have not been recorded on a reference
+machine yet.
+
 **Not executed in this environment.** These benchmarks were written and
 manually reviewed for correctness (imports, API usage, control flow) but
 could not actually be run here — there is no `flutter`/`dart` binary

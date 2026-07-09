@@ -91,6 +91,12 @@ stream after an error. Race safety works the same way as `ObservableFuture`
 cancelled before resubscribing, so a stale subscription stops receiving
 events altogether rather than relying only on the generation check.
 
+If `streamFactory()` throws synchronously before returning a `Stream`, `run()`
+converts it into `AsyncError`, matching `ObservableFuture`'s failure contract.
+Asynchronous failures returned by `StreamSubscription.cancel()` are isolated
+and forwarded through `CoreErrorReporting`, rather than becoming unhandled
+asynchronous errors.
+
 ## Pull-to-refresh pattern
 
 ```dart

@@ -22,10 +22,17 @@ jobs:
       - name: Run tests
         run: flutter test
 
+      - name: Run performance regression guards
+        run: flutter test benchmark/performance_guard_test.dart
+
       - name: Install example dependencies
         run: flutter pub get
         working-directory: example
 
       - name: Run example tests
         run: flutter test
+        working-directory: example
+
+      - name: Build example for web release
+        run: flutter build web --release
         working-directory: example

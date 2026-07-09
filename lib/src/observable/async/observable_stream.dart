@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../core/core_error_reporting.dart';
 import '../observable.dart';
 import 'async_state.dart';
 
@@ -95,6 +96,25 @@ class ObservableStream<T> extends Observable<AsyncState<T>> {
   int _generation = 0;
   StreamSubscription<T>? _subscription;
 
+  void _cancelSubscription(
+    StreamSubscription<T>? subscription, {
+    required String context,
+  }) {
+    if (subscription == null) {
+      return;
+    }
+    unawaited(
+      subscription.cancel().catchError((Object error, StackTrace stackTrace) {
+        CoreErrorReporting.report(
+          error,
+          stackTrace,
+          library: 'all_observer',
+          context: context,
+        );
+      }),
+    );
+  }
+
   T? _previousDataFromCurrent() {
     final AsyncState<T> current = value;
     return switch (current) {
@@ -135,10 +155,21 @@ class ObservableStream<T> extends Observable<AsyncState<T>> {
   /// [Observable] fechado já são um no-op.
   void run() {
     final int generation = ++_generation;
-    unawaited(_subscription?.cancel());
+    _cancelSubscription(
+      _subscription,
+      context: 'failed to cancel the previous ObservableStream subscription',
+    );
     _subscription = null;
     value = AsyncLoading<T>(previousData: _previousDataFromCurrent());
-    final Stream<T> stream = streamFactory();
+    late final Stream<T> stream;
+    try {
+      stream = streamFactory();
+    } catch (error, stackTrace) {
+      if (generation == _generation && !isClosed) {
+        value = AsyncError<T>(error, stackTrace);
+      }
+      return;
+    }
     _subscription = stream.listen(
       (T event) {
         if (generation != _generation || isClosed) {
@@ -172,7 +203,10 @@ class ObservableStream<T> extends Observable<AsyncState<T>> {
   @override
   void close() {
     _generation++; // invalidates any straggling event before cancel() settles
-    unawaited(_subscription?.cancel());
+    _cancelSubscription(
+      _subscription,
+      context: 'failed to cancel ObservableStream during close',
+    );
     _subscription = null;
     super.close();
   }

@@ -96,6 +96,12 @@ cancelamento explícito da `StreamSubscription` anterior antes de assinar
 de novo, então uma assinatura obsoleta para de receber eventos por
 completo em vez de depender só da checagem de geração.
 
+Se `streamFactory()` lançar uma exceção sincronamente antes de retornar uma
+`Stream`, `run()` a converte em `AsyncError`, mantendo o mesmo contrato de
+falha de `ObservableFuture`. Falhas assíncronas retornadas por
+`StreamSubscription.cancel()` são isoladas e encaminhadas por
+`CoreErrorReporting`, sem gerar erro assíncrono não tratado.
+
 ## Padrão de pull-to-refresh
 
 ```dart
