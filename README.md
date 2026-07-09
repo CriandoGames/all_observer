@@ -17,6 +17,7 @@ Reactive state for Flutter with zero dependencies — `final count = 0.obs;` +
 - [Features](#features)
 - [Installing](#installing)
 - [Typed observable aliases](#typed-observable-aliases)
+- [Custom logging / ObserverInspector](#custom-logging--observerinspector)
 - [Counter app step by step](#counter-app-step-by-step)
 - [The building blocks](#the-building-blocks)
 - [Observer vs watch(context) — choosing the right one](#observer-vs-watchcontext--choosing-the-right-one)
@@ -62,6 +63,54 @@ final count = ObsInt(0, name: 'count');
 
 Observer(() => Text('${count.value}'));
 count.value++;
+```
+
+## Custom logging / ObserverInspector
+
+`ObserverInspector` is the `all_observer` conceptual equivalent of bloc's
+`BlocObserver`: a global, pluggable observability API for forwarding typed
+lifecycle, update, dependency-tracking, warning, effect, and scope events to
+your own logger, analytics service, or test audit trail.
+
+Unlike bloc's single observer slot, `ObserverConfig.inspectors` is already a
+list, so multiple inspectors can be registered directly. An exception from
+one inspector is isolated: other inspectors and the reactive update continue
+normally. Set `ObserverConfig.captureStackTraces = true` only while debugging
+when event stack traces are needed.
+
+The built-in `ConsoleInspector` remains controlled by
+`ObserverConfig.logging`, `warnings`, and `logLevel`; custom inspectors are
+additional sinks and do not duplicate, replace, or silence that console
+output. `RecordingInspector` provides a bounded in-memory audit trail for
+tests.
+
+```dart
+class AppObserverInspector extends ObserverInspector {
+  @override
+  void onCreate(ObservableCreateEvent event) {
+    logger.info('created ${event.label}');
+  }
+
+  @override
+  void onUpdate(ObservableUpdateEvent event) {
+    logger.info('${event.label}: ${event.oldValue} -> ${event.newValue}');
+  }
+
+  @override
+  void onWarning(WarningEvent event) {
+    logger.warning('${event.label}: ${event.suggestion ?? ''}');
+  }
+
+  @override
+  void onDispose(ObservableDisposeEvent event) {
+    logger.info('disposed ${event.label}');
+  }
+}
+
+void main() {
+  ObserverConfig.inspectors.add(AppObserverInspector());
+  runApp(const App());
+}
 ```
 
 ## Counter app step by step

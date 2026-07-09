@@ -17,6 +17,7 @@ Estado reativo para Flutter sem dependências — `final count = 0.obs;` +
 - [Features](#features)
 - [Instalando](#instalando)
 - [Aliases tipados de observáveis](#aliases-tipados-de-observáveis)
+- [Logging customizado / ObserverInspector](#logging-customizado--observerinspector)
 - [Contador passo a passo](#contador-passo-a-passo)
 - [Os blocos de construção](#os-blocos-de-construção)
 - [Observer vs watch(context) — quando usar cada um](#observer-vs-watchcontext--quando-usar-cada-um)
@@ -62,6 +63,56 @@ final count = ObsInt(0, name: 'count');
 
 Observer(() => Text('${count.value}'));
 count.value++;
+```
+
+## Logging customizado / ObserverInspector
+
+`ObserverInspector` é o equivalente conceitual do `BlocObserver` do bloc para
+o ecossistema `all_observer`: uma API global e plugável de observabilidade para
+encaminhar eventos tipados de ciclo de vida, atualização, rastreamento de
+dependências, warnings, effects e scopes ao seu logger, serviço de analytics
+ou trilha de auditoria de testes.
+
+Diferente do slot único de observer do bloc, `ObserverConfig.inspectors` já é
+uma lista, portanto aceita múltiplos inspectors diretamente. Uma exceção
+lançada por um inspector é isolada: os demais inspectors e a atualização
+reativa continuam normalmente. Ative
+`ObserverConfig.captureStackTraces = true` somente durante depuração quando
+precisar do stack trace dos eventos.
+
+O `ConsoleInspector` interno continua controlado por
+`ObserverConfig.logging`, `warnings` e `logLevel`; inspectors customizados são
+destinos adicionais e não duplicam, substituem ou silenciam essa saída.
+`RecordingInspector` fornece uma trilha de auditoria limitada em memória para
+testes.
+
+```dart
+class AppObserverInspector extends ObserverInspector {
+  @override
+  void onCreate(ObservableCreateEvent event) {
+    logger.info('created ${event.label}');
+  }
+
+  @override
+  void onUpdate(ObservableUpdateEvent event) {
+    logger.info('${event.label}: ${event.oldValue} -> ${event.newValue}');
+  }
+
+  @override
+  void onWarning(WarningEvent event) {
+    logger.warning('${event.label}: ${event.suggestion ?? ''}');
+  }
+
+  @override
+  void onDispose(ObservableDisposeEvent event) {
+    logger.info('disposed ${event.label}');
+  }
+}
+
+void main() {
+  ObserverConfig.inspectors.add(AppObserverInspector());
+  runApp(const App());
+}
 ```
 
 ## Contador passo a passo
