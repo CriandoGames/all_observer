@@ -43,6 +43,7 @@ export 'src/observable/collections/observable_map.dart';
 export 'src/observable/collections/observable_set.dart';
 export 'src/observable/computed.dart';
 export 'src/observable/observable.dart';
+export 'src/observable/observable_aliases.dart';
 export 'src/observable/observable_extensions.dart';
 export 'src/observable/observable_history.dart';
 export 'src/observable/observable_store_extensions.dart';

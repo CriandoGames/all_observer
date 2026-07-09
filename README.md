@@ -16,6 +16,7 @@ Reactive state for Flutter with zero dependencies — `final count = 0.obs;` +
 
 - [Features](#features)
 - [Installing](#installing)
+- [Typed observable aliases](#typed-observable-aliases)
 - [Counter app step by step](#counter-app-step-by-step)
 - [The building blocks](#the-building-blocks)
 - [Observer vs watch(context) — choosing the right one](#observer-vs-watchcontext--choosing-the-right-one)
@@ -47,6 +48,20 @@ dependencies:
 
 ```dart
 import 'package:all_observer/all_observer.dart';
+```
+
+## Typed observable aliases
+
+`ObsBool`, `ObsInt`, `ObsDouble`, and `ObsString` are lightweight `typedef`
+aliases for common `Observable<T>` types. They are only syntactic sugar: they
+add no classes or behavior.
+
+```dart
+final loading = ObsBool(false, name: 'loading');
+final count = ObsInt(0, name: 'count');
+
+Observer(() => Text('${count.value}'));
+count.value++;
 ```
 
 ## Counter app step by step

@@ -16,6 +16,7 @@ Estado reativo para Flutter sem dependências — `final count = 0.obs;` +
 
 - [Features](#features)
 - [Instalando](#instalando)
+- [Aliases tipados de observáveis](#aliases-tipados-de-observáveis)
 - [Contador passo a passo](#contador-passo-a-passo)
 - [Os blocos de construção](#os-blocos-de-construção)
 - [Observer vs watch(context) — quando usar cada um](#observer-vs-watchcontext--quando-usar-cada-um)
@@ -47,6 +48,20 @@ dependencies:
 
 ```dart
 import 'package:all_observer/all_observer.dart';
+```
+
+## Aliases tipados de observáveis
+
+`ObsBool`, `ObsInt`, `ObsDouble` e `ObsString` são aliases leves, criados com
+`typedef`, para tipos comuns de `Observable<T>`. Eles são apenas açúcar
+sintático: não adicionam classes nem alteram o comportamento.
+
+```dart
+final loading = ObsBool(false, name: 'loading');
+final count = ObsInt(0, name: 'count');
+
+Observer(() => Text('${count.value}'));
+count.value++;
 ```
 
 ## Contador passo a passo
