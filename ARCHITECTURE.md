@@ -66,6 +66,24 @@ hold their post-write values (memoized from wave 1) — never a mix of one
 new and one stale. `d` recomputes and notifies its own listeners exactly
 once.
 
+### Effects that write during a flush
+
+`effect()` uses the same `DependencyTracker` stack as `Observer` and
+`Computed`, but its scheduler has one extra guard: if the effect body writes
+to an observable it just tracked, the invalidation caused by that write in
+the current batch flush is ignored for that effect instance. This prevents a
+duplicate compensating rerun such as `effect -> read computed -> write
+source -> computed invalidates effect again` while keeping the dependency
+alive for later external writes.
+
+The marker lives at the batch-scheduler boundary (`BatchScope.flushEpoch`)
+rather than in the public engine. `DependencyTracker` reports tracked writes
+through `TrackingContext.onTrackedWrite`, and `_Effect` records the flush
+epoch to suppress only self-invalidations from that same wave. Disposal
+during the callback still clears the fresh dependency list immediately, so a
+self-disposed effect or a disposed `ReactiveScope` does not leave stale
+listeners behind.
+
 ### ADR-0001: Micro-batch every write instead of per-node versioning
 
 **Context.** Some reactive libraries (e.g. Preact Signals) solve the

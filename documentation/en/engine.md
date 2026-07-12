@@ -200,3 +200,10 @@ The package preset lives in `lib/src/core/engine_bridge.dart` (exported by
 
 That's why `Observable`, collections, async and widgets needed no changes
 — and why everything you already know from `core_concepts.md` still holds.
+
+`effect()` remains a higher-level scheduler on top of the same tracking
+stack. It records writes made while its callback is tracked and suppresses
+only the self-invalidation from the current batch flush; later external
+writes still propagate through the engine bridge and re-run the effect. This
+keeps push-pull graph mutation behavior compatible with the package-level
+batch guarantees.

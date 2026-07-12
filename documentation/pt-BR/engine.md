@@ -208,3 +208,10 @@ pelo `core.dart`) e integra por exatamente duas costuras:
 É por isso que `Observable`, coleções, async e widgets não precisaram de
 nenhuma mudança — e tudo que você já sabe do `core_concepts.md` continua
 valendo.
+
+`effect()` continua sendo um scheduler de nível mais alto sobre a mesma
+pilha de rastreamento. Ele registra escritas feitas enquanto seu callback
+está rastreado e suprime apenas a autoinvalidação daquele flush de batch
+atual; escritas externas posteriores ainda propagam pela ponte do motor e
+rodam o effect de novo. Isso mantém o comportamento de mutação de grafo
+push-pull compatível com as garantias de batch do pacote.

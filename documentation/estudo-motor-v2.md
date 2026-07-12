@@ -40,7 +40,7 @@ O ADR-0001 decidiu explicitamente contra versioning por nó "sem causa". Concord
 
 1. **Benchmark comparativo** — adicionar `alien_signals` como dev dependency do `benchmark/` e medir os mesmos cenários do `bench/propagate.dart` deles (diamante, cadeia profunda, fan-out largo). Isso transforma as decisões abaixo de opinião em dado, e alimenta o RESULTS.md.
 2. **README** — incluir `alien_signals` na tabela comparativa exigida (posicionamento: "motor cru mais rápido" vs "biblioteca completa com observabilidade"). Solidart usa alien como motor — bom argumento de contexto.
-3. **Testes de mutação de grafo** — portar a ideia do `check_dirty_graph_mutation_test.dart`: deps que mudam *durante* o flush (listener que cria/descarta Computed no meio da onda). O suite atual de diamante não cobre isso.
+3. **Testes de mutação de grafo — coberto na 1.5.4**: o suite agora cobre deps que mudam durante dirty checking/flush, descarte de subscribers durante update, perda do último subscriber, `CoreComputed.close()` durante recompute, `untracked()` dentro de `CoreComputed`, revert de valor no mesmo batch, isolamento de exceções no flush e smoke test Dart2JS de `core.dart`/`engine.dart`. Manter esses testes ativos como regressão.
 4. **Effect com cleanup retornável** — `effect(() { ...; return () => sub.cancel(); })`, cleanup executado antes de cada rerun e no dispose. Padrão consagrado (React/Solid/alien), pequeno, e resolve um caso real de vazamento em effects assíncronos.
 
 **Micro-otimizações localizadas (se o benchmark apontar):**
