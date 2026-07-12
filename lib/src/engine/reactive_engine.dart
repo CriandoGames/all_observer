@@ -66,7 +66,9 @@ extension type const ReactiveFlags._(int _raw) implements int {
   // ---- Máscaras nomeadas para as combinações de flags que o motor checa ----
 
   /// `recursedCheck | recursed | dirty | pending` (= 60).
-  static const ReactiveFlags propagationState = ReactiveFlags._(4 | 8 | 16 | 32);
+  static const ReactiveFlags propagationState = ReactiveFlags._(
+    4 | 8 | 16 | 32,
+  );
 
   /// `recursedCheck | recursed` (= 12).
   static const ReactiveFlags anyRecursed = ReactiveFlags._(4 | 8);

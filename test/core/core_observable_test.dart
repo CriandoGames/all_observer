@@ -105,51 +105,54 @@ void main() {
       );
     });
 
-    test('dispatches onCreate/onUpdate/onDispose to ObserverConfig.inspectors', () {
-      final RecordingInspector recorder = RecordingInspector();
-      ObserverConfig.inspectors = <ObserverInspector>[recorder];
+    test(
+      'dispatches onCreate/onUpdate/onDispose to ObserverConfig.inspectors',
+      () {
+        final RecordingInspector recorder = RecordingInspector();
+        ObserverConfig.inspectors = <ObserverInspector>[recorder];
 
-      final CoreObservable<int> count = CoreObservable<int>(1, name: 'count');
-      count.value = 2;
-      count.close();
+        final CoreObservable<int> count = CoreObservable<int>(1, name: 'count');
+        count.value = 2;
+        count.close();
 
-      expect(recorder.events.whereType<ObservableCreateEvent>(), hasLength(1));
-      expect(recorder.events.whereType<ObservableUpdateEvent>(), hasLength(1));
-      expect(
-        recorder.events.whereType<ObservableDisposeEvent>(),
-        hasLength(1),
-      );
+        expect(
+          recorder.events.whereType<ObservableCreateEvent>(),
+          hasLength(1),
+        );
+        expect(
+          recorder.events.whereType<ObservableUpdateEvent>(),
+          hasLength(1),
+        );
+        expect(
+          recorder.events.whereType<ObservableDisposeEvent>(),
+          hasLength(1),
+        );
+      },
+    );
+
+    test('writing the same observable twice inside a batch notifies once', () {
+      final CoreObservable<int> a = CoreObservable<int>(1);
+      int notifications = 0;
+      a.addListener(() => notifications++);
+
+      BatchScope.run(() {
+        a.value = 2;
+        a.value = 3;
+      });
+
+      expect(notifications, 1);
+      expect(a.value, 3);
     });
 
-    test(
-      'writing the same observable twice inside a batch notifies once',
-      () {
-        final CoreObservable<int> a = CoreObservable<int>(1);
-        int notifications = 0;
-        a.addListener(() => notifications++);
+    test('a bare write outside any explicit batch still notifies exactly '
+        'once (auto micro-batch)', () {
+      final CoreObservable<int> a = CoreObservable<int>(1);
+      int notifications = 0;
+      a.addListener(() => notifications++);
 
-        BatchScope.run(() {
-          a.value = 2;
-          a.value = 3;
-        });
+      a.value = 2;
 
-        expect(notifications, 1);
-        expect(a.value, 3);
-      },
-    );
-
-    test(
-      'a bare write outside any explicit batch still notifies exactly '
-      'once (auto micro-batch)',
-      () {
-        final CoreObservable<int> a = CoreObservable<int>(1);
-        int notifications = 0;
-        a.addListener(() => notifications++);
-
-        a.value = 2;
-
-        expect(notifications, 1);
-      },
-    );
+      expect(notifications, 1);
+    });
   });
 }

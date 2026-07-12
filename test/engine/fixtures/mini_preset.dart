@@ -206,8 +206,7 @@ MiniEffect effect(void Function() fn) {
 void _runQueued(MiniEffect e) {
   final ReactiveFlags flags = e.flags;
   if (flags.hasAny(ReactiveFlags.dirty) ||
-      (flags.hasAny(ReactiveFlags.pending) &&
-          engine.checkDirty(e.deps!, e))) {
+      (flags.hasAny(ReactiveFlags.pending) && engine.checkDirty(e.deps!, e))) {
     e.depsTail = null;
     e.flags = ReactiveFlags.watchingOrChecking;
     e._track();
@@ -259,6 +258,82 @@ void disposeAllDepsInReverse(ReactiveNode sub) {
     final ReactiveLink? prev = link.prevDep;
     engine.unlink(link, sub);
     link = prev;
+  }
+}
+
+/// Validates the intrusive dependency/subscriber lists reachable from
+/// [nodes]. Test-only invariant checker for graph-mutation regressions.
+void expectConsistentGraph(Iterable<ReactiveNode> nodes) {
+  final Set<ReactiveLink> allDeps = <ReactiveLink>{};
+  final Set<ReactiveLink> allSubs = <ReactiveLink>{};
+  final Set<String> pairs = <String>{};
+
+  for (final ReactiveNode node in nodes) {
+    ReactiveLink? previous;
+    ReactiveLink? current = node.deps;
+    ReactiveLink? last;
+    while (current != null) {
+      if (!allDeps.add(current)) {
+        throw StateError('duplicate dependency link in dependency lists');
+      }
+      if (!identical(current.sub, node)) {
+        throw StateError('dependency link points at a different subscriber');
+      }
+      if (!identical(current.prevDep, previous)) {
+        throw StateError('broken prevDep pointer');
+      }
+      if (current.nextDep != null &&
+          !identical(current.nextDep!.prevDep, current)) {
+        throw StateError('broken nextDep.prevDep pointer');
+      }
+      final String pair =
+          '${identityHashCode(current.dep)}/${identityHashCode(current.sub)}';
+      if (!pairs.add(pair)) {
+        throw StateError('duplicate link for the same dep/sub pair');
+      }
+      last = current;
+      previous = current;
+      current = current.nextDep;
+    }
+    if (!identical(node.depsTail, last)) {
+      throw StateError('depsTail is not the last dependency link');
+    }
+
+    previous = null;
+    current = node.subs;
+    last = null;
+    while (current != null) {
+      if (!allSubs.add(current)) {
+        throw StateError('duplicate subscriber link in subscriber lists');
+      }
+      if (!identical(current.dep, node)) {
+        throw StateError('subscriber link points at a different dependency');
+      }
+      if (!identical(current.prevSub, previous)) {
+        throw StateError('broken prevSub pointer');
+      }
+      if (current.nextSub != null &&
+          !identical(current.nextSub!.prevSub, current)) {
+        throw StateError('broken nextSub.prevSub pointer');
+      }
+      last = current;
+      previous = current;
+      current = current.nextSub;
+    }
+    if (!identical(node.subsTail, last)) {
+      throw StateError('subsTail is not the last subscriber link');
+    }
+  }
+
+  for (final ReactiveLink link in allDeps) {
+    if (!allSubs.contains(link)) {
+      throw StateError('dependency link is missing from subscriber list');
+    }
+  }
+  for (final ReactiveLink link in allSubs) {
+    if (!allDeps.contains(link)) {
+      throw StateError('subscriber link is missing from dependency list');
+    }
   }
 }
 

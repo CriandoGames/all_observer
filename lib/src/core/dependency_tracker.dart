@@ -20,7 +20,11 @@ class TrackingContext {
   /// para [onDependencyChanged]. [ownerLabel], se fornecido, identifica o
   /// Observer/Computed/Effect que está rastreando, para eventos
   /// `ObserverInspector.onTrack`.
-  TrackingContext(this.onDependencyChanged, {this.ownerLabel, this.subscribes = true});
+  TrackingContext(
+    this.onDependencyChanged, {
+    this.ownerLabel,
+    this.subscribes = true,
+  });
 
   /// Invoked when any observable read during this context later changes.
   ///

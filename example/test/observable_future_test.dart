@@ -40,32 +40,36 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(controller.fetch.value, isA<AsyncError<int>>());
-    final AsyncError<int> errorState = controller.fetch.value as AsyncError<int>;
+    final AsyncError<int> errorState =
+        controller.fetch.value as AsyncError<int>;
     expect(errorState.error, isA<StateError>());
   });
 
-  test('retry() preserves the previous data as AsyncLoading.previousData', () async {
-    int callCount = 0;
-    final List<Completer<int>> completers = <Completer<int>>[
-      Completer<int>(),
-      Completer<int>(),
-    ];
-    final FetchController controller = FetchController(
-      fetcher: () => completers[callCount++].future,
-    );
-    addTearDown(controller.dispose);
+  test(
+    'retry() preserves the previous data as AsyncLoading.previousData',
+    () async {
+      int callCount = 0;
+      final List<Completer<int>> completers = <Completer<int>>[
+        Completer<int>(),
+        Completer<int>(),
+      ];
+      final FetchController controller = FetchController(
+        fetcher: () => completers[callCount++].future,
+      );
+      addTearDown(controller.dispose);
 
-    completers[0].complete(1);
-    await Future<void>.delayed(Duration.zero);
-    expect(controller.fetch.value, const AsyncData<int>(1));
+      completers[0].complete(1);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.fetch.value, const AsyncData<int>(1));
 
-    final Future<void> retryFuture = controller.retry();
-    final AsyncState<int> mid = controller.fetch.value;
-    expect(mid, isA<AsyncLoading<int>>());
-    expect((mid as AsyncLoading<int>).previousData, 1);
+      final Future<void> retryFuture = controller.retry();
+      final AsyncState<int> mid = controller.fetch.value;
+      expect(mid, isA<AsyncLoading<int>>());
+      expect((mid as AsyncLoading<int>).previousData, 1);
 
-    completers[1].complete(2);
-    await retryFuture;
-    expect(controller.fetch.value, const AsyncData<int>(2));
-  });
+      completers[1].complete(2);
+      await retryFuture;
+      expect(controller.fetch.value, const AsyncData<int>(2));
+    },
+  );
 }

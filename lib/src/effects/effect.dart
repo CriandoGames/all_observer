@@ -126,7 +126,14 @@ class _Effect {
       //
       // Reinscreve nas dependências que [_run] leu nesta passagem, mesmo em
       // caso de falha — ver o mesmo raciocínio em Computed._recompute.
-      _dependencyDisposers = context.disposers;
+      if (_isDisposed) {
+        for (final Disposer dispose in context.disposers) {
+          dispose();
+        }
+        _dependencyDisposers = <Disposer>[];
+      } else {
+        _dependencyDisposers = context.disposers;
+      }
     }
     dispatchToInspectors(
       ObserverConfig.inspectors,
@@ -203,6 +210,7 @@ class _Effect {
       return;
     }
     _clearDependencies();
+    _dirty = false;
     _isDisposed = true;
   }
 }

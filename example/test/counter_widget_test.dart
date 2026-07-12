@@ -19,7 +19,9 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: CounterDemo(controller: controller))),
+      MaterialApp(
+        home: Scaffold(body: CounterDemo(controller: controller)),
+      ),
     );
 
     expect(find.text('Count: 0'), findsOneWidget);
@@ -43,7 +45,9 @@ void main() {
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: CounterDemo(controller: controller))),
+      MaterialApp(
+        home: Scaffold(body: CounterDemo(controller: controller)),
+      ),
     );
 
     await tester.tap(find.text('Increment'));

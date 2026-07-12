@@ -202,9 +202,10 @@ void main() {
 
     test('unmodifiable creates a list that reads normally but throws on '
         'mutation', () {
-      final ObservableList<int> items = ObservableList<int>.unmodifiable(
-        <int>[1, 2],
-      );
+      final ObservableList<int> items = ObservableList<int>.unmodifiable(<int>[
+        1,
+        2,
+      ]);
       expect(items, <int>[1, 2]);
       expect(() => items.add(3), throwsUnsupportedError);
     });

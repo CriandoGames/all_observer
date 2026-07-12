@@ -60,10 +60,7 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
   /// Cria uma [ObservableList] vazia, crescível por padrão. Espelha
   /// `List<E>.empty`.
   factory ObservableList.empty({bool growable = false, String? name}) {
-    return ObservableList<E>._owned(
-      List<E>.empty(growable: growable),
-      name,
-    );
+    return ObservableList<E>._owned(List<E>.empty(growable: growable), name);
   }
 
   /// Creates an [ObservableList] containing all [elements]. Mirrors

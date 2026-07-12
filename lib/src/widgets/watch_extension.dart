@@ -199,8 +199,9 @@ T _watch<T>(ValueListenable<T> source, BuildContext context) {
     }
   }
   final Element element = context as Element;
-  final _ElementWatcher watcher =
-      _watchers[element] ??= _ElementWatcher(element);
+  final _ElementWatcher watcher = _watchers[element] ??= _ElementWatcher(
+    element,
+  );
   return watcher.read(source);
 }
 

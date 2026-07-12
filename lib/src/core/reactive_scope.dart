@@ -117,8 +117,7 @@ class ReactiveScope {
   /// O escopo mais interno atualmente executando uma chamada a [run], ou
   /// `null` se nenhum. Este é o alvo de registro que `CoreComputed`,
   /// `effect()` e os workers consultam na criação.
-  static ReactiveScope? get current =>
-      _stack.isEmpty ? null : _stack.last;
+  static ReactiveScope? get current => _stack.isEmpty ? null : _stack.last;
 
   final List<Disposer> _disposers = <Disposer>[];
   bool _isDisposed = false;

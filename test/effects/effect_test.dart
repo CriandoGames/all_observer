@@ -109,6 +109,67 @@ void main() {
       expect(runs, 1, reason: 'a disposed effect must never run again');
     });
 
+    test('dispose() during its own re-run removes freshly tracked deps', () {
+      final Observable<int> source = Observable<int>(0);
+      late final Disposer dispose;
+      int runs = 0;
+
+      dispose = effect(() {
+        runs++;
+        final int value = source.value;
+
+        if (value == 1) {
+          dispose();
+        }
+      });
+
+      expect(source.hasListeners, isTrue);
+
+      source.value = 1;
+
+      expect(runs, 2);
+      expect(
+        source.hasListeners,
+        isFalse,
+        reason:
+            'an effect disposed during its callback must not keep '
+            'listeners from that same run',
+      );
+
+      source.value = 2;
+      expect(runs, 2);
+    });
+
+    test('scope disposed during effect re-run tears down the effect', () {
+      final ReactiveScope scope = ReactiveScope(name: 'effectScope');
+      final Observable<int> source = Observable<int>(0);
+      int runs = 0;
+
+      scope.run(() {
+        effect(() {
+          runs++;
+          final int value = source.value;
+
+          if (value == 1) {
+            scope.dispose();
+          }
+        });
+      });
+
+      expect(source.hasListeners, isTrue);
+
+      source.value = 1;
+
+      expect(runs, 2);
+      expect(scope.isDisposed, isTrue);
+      expect(source.hasListeners, isFalse);
+
+      expect(scope.dispose, returnsNormally);
+      source.value = 2;
+      expect(runs, 2);
+      expect(source.hasListeners, isFalse);
+    });
+
     test('dispose() is safe to call more than once', () {
       final Observable<int> count = Observable<int>(0);
       final Disposer dispose = effect(() => count.value);
@@ -116,29 +177,103 @@ void main() {
       expect(dispose, returnsNormally);
     });
 
+    test('nested effects are not automatically owned by the parent', () {
+      final Observable<int> outerSource = Observable<int>(0);
+      final Observable<int> innerSource = Observable<int>(0);
+      final List<Disposer> childDisposers = <Disposer>[];
+      int outerRuns = 0;
+      int innerRuns = 0;
+
+      final Disposer disposeOuter = effect(() {
+        outerSource.value;
+        outerRuns++;
+        childDisposers.add(
+          effect(() {
+            innerSource.value;
+            innerRuns++;
+          }),
+        );
+      });
+
+      expect(outerRuns, 1);
+      expect(innerRuns, 1);
+
+      outerSource.value = 1;
+      expect(outerRuns, 2);
+      expect(childDisposers, hasLength(2));
+      expect(innerRuns, 2);
+
+      innerSource.value = 1;
+      expect(
+        innerRuns,
+        4,
+        reason: 'each parent run created another still-live child effect',
+      );
+
+      disposeOuter();
+      innerSource.value = 2;
+      expect(innerRuns, 6);
+
+      for (final Disposer dispose in childDisposers) {
+        dispose();
+      }
+    });
+
+    test('runs at most once per Observable.batch(), after all deps settle', () {
+      final Observable<int> a = Observable<int>(1);
+      final Observable<int> b = Observable<int>(10);
+      int runs = 0;
+      final List<int> seenSums = <int>[];
+      final Disposer dispose = effect(() {
+        runs++;
+        seenSums.add(a.value + b.value);
+      });
+      runs = 0;
+      seenSums.clear();
+
+      Observable.batch(() {
+        a.value = 2;
+        b.value = 20;
+      });
+
+      expect(runs, 1, reason: 'one run for the whole batch, not per write');
+      expect(seenSums, <int>[22]);
+      dispose();
+    });
+
     test(
-      'runs at most once per Observable.batch(), after all deps settle',
+      'write inside effect during flush keeps later updates alive',
       () {
-        final Observable<int> a = Observable<int>(1);
-        final Observable<int> b = Observable<int>(10);
+        final Observable<int> source = Observable<int>(0);
+        final Computed<int> computedValue = Computed<int>(() => source.value);
         int runs = 0;
-        final List<int> seenSums = <int>[];
+
         final Disposer dispose = effect(() {
           runs++;
-          seenSums.add(a.value + b.value);
-        });
-        runs = 0;
-        seenSums.clear();
-
-        Observable.batch(() {
-          a.value = 2;
-          b.value = 20;
+          if (computedValue.value > 0) {
+            source.value = 0;
+          }
         });
 
-        expect(runs, 1, reason: 'one run for the whole batch, not per write');
-        expect(seenSums, <int>[22]);
+        expect(runs, 1);
+
+        source.value = 1;
+        expect(source.value, 0);
+        expect(runs, 2);
+
+        source.value = 2;
+        expect(source.value, 0);
+        expect(runs, 3);
+
+        source.value = 3;
+        expect(source.value, 0);
+        expect(runs, 4);
+
         dispose();
       },
+      skip:
+          'Known semantic gap: writes inside effect currently trigger a '
+          'compensating run with the final value.',
     );
 
     test('exception during run is reported, naming the effect', () {
@@ -157,15 +292,12 @@ void main() {
       dispose();
     });
 
-    test(
-      'effect that never reads any observable warns (or throws in '
-      'strictMode)',
-      () {
-        expect(() => effect(() {}), returnsNormally);
+    test('effect that never reads any observable warns (or throws in '
+        'strictMode)', () {
+      expect(() => effect(() {}), returnsNormally);
 
-        ObserverConfig.strictMode = true;
-        expect(() => effect(() {}), throwsA(isA<ObserverError>()));
-      },
-    );
+      ObserverConfig.strictMode = true;
+      expect(() => effect(() {}), throwsA(isA<ObserverError>()));
+    });
   });
 }

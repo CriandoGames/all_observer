@@ -31,29 +31,28 @@ class _ProbeState extends State<_Probe> with ObserverStateMixin {
 
 void main() {
   group('ObserverStateMixin', () {
-    testWidgets(
-      'autorun reacts to the observable and stops after unmount',
-      (tester) async {
-        final Observable<int> source = Observable<int>(1);
-        final List<int> seen = <int>[];
+    testWidgets('autorun reacts to the observable and stops after unmount', (
+      tester,
+    ) async {
+      final Observable<int> source = Observable<int>(1);
+      final List<int> seen = <int>[];
 
-        await tester.pumpWidget(
-          _wrap(_Probe(source: source, onEffectRun: seen.add)),
-        );
-        expect(seen, <int>[1]);
+      await tester.pumpWidget(
+        _wrap(_Probe(source: source, onEffectRun: seen.add)),
+      );
+      expect(seen, <int>[1]);
 
-        source.value = 2;
-        await tester.pump();
-        expect(seen, <int>[1, 2]);
+      source.value = 2;
+      await tester.pump();
+      expect(seen, <int>[1, 2]);
 
-        // Unmount the widget: the autorun effect must be disposed and
-        // stop reacting to further changes.
-        await tester.pumpWidget(_wrap(const SizedBox.shrink()));
-        source.value = 3;
-        await tester.pump();
-        expect(seen, <int>[1, 2]);
-      },
-    );
+      // Unmount the widget: the autorun effect must be disposed and
+      // stop reacting to further changes.
+      await tester.pumpWidget(_wrap(const SizedBox.shrink()));
+      source.value = 3;
+      await tester.pump();
+      expect(seen, <int>[1, 2]);
+    });
 
     testWidgets('autoDispose runs registered disposers on unmount', (
       tester,
@@ -62,15 +61,9 @@ void main() {
       late _ProbeState state;
 
       await tester.pumpWidget(
-        _wrap(
-          _Probe(
-            source: source,
-            onEffectRun: (_) {},
-          ),
-        ),
+        _wrap(_Probe(source: source, onEffectRun: (_) {})),
       );
-      state =
-          tester.state(find.byType(_Probe));
+      state = tester.state(find.byType(_Probe));
       expect(state.manualDisposeCalls, 0);
 
       await tester.pumpWidget(_wrap(const SizedBox.shrink()));

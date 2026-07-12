@@ -45,8 +45,7 @@ void main() {
   });
 
   group('ReactiveEngine — lazy pull (computed)', () {
-    test('an unread computed never recomputes, no matter how many writes',
-        () {
+    test('an unread computed never recomputes, no matter how many writes', () {
       final MiniSignal<int> s = MiniSignal<int>(0);
       final MiniComputed<int> c = MiniComputed<int>(() => s.get() * 10);
 
@@ -66,8 +65,7 @@ void main() {
       expect(c.recomputes, 2);
     });
 
-    test('diamond (a -> b,c -> d): glitch-free, one effect run per write',
-        () {
+    test('diamond (a -> b,c -> d): glitch-free, one effect run per write', () {
       final MiniSignal<int> a = MiniSignal<int>(0);
       final MiniComputed<int> b = MiniComputed<int>(() => a.get() + 1);
       final MiniComputed<int> c = MiniComputed<int>(() => a.get() * 2);
@@ -83,8 +81,7 @@ void main() {
       expect(e.runs, 3); // exactly one run per write / um run por escrita
     });
 
-    test('deep chain (50k computeds): propagate/checkDirty never overflow',
-        () {
+    test('deep chain (50k computeds): propagate/checkDirty never overflow', () {
       const int depth = 50000;
       final MiniSignal<int> root = MiniSignal<int>(0);
       MiniComputed<int> prev = MiniComputed<int>(() => root.get() + 1);
@@ -126,8 +123,7 @@ void main() {
       expect(e.runs, 2);
     });
 
-    test('custom equals cut: update() returning false acts as a firewall',
-        () {
+    test('custom equals cut: update() returning false acts as a firewall', () {
       final MiniSignal<int> s = MiniSignal<int>(0);
       // A fresh List each recompute — identical() would always say
       // "changed"; only the custom equals can cut here.
@@ -197,28 +193,30 @@ void main() {
   });
 
   group('ReactiveEngine — unwatched (automatic cleanup)', () {
-    test('computed releases its own deps when it loses its last subscriber',
-        () {
-      final MiniSignal<int> s = MiniSignal<int>(0);
-      final MiniComputed<int> c = MiniComputed<int>(() => s.get() + 1);
-      final MiniEffect e = effect(() => c.get());
+    test(
+      'computed releases its own deps when it loses its last subscriber',
+      () {
+        final MiniSignal<int> s = MiniSignal<int>(0);
+        final MiniComputed<int> c = MiniComputed<int>(() => s.get() + 1);
+        final MiniEffect e = effect(() => c.get());
 
-      expect(s.subs, isNotNull); // s -> c edge alive / aresta s -> c viva
-      e.stop();
+        expect(s.subs, isNotNull); // s -> c edge alive / aresta s -> c viva
+        e.stop();
 
-      expect(engine.unwatchedLog, contains(c));
-      // Auto-release: c dropped its own dependency on s.
-      // Auto-liberação: c soltou sua própria dependência de s.
-      expect(c.deps, isNull);
-      expect(s.subs, isNull);
+        expect(engine.unwatchedLog, contains(c));
+        // Auto-release: c dropped its own dependency on s.
+        // Auto-liberação: c soltou sua própria dependência de s.
+        expect(c.deps, isNull);
+        expect(s.subs, isNull);
 
-      // And a later read still works, recomputing fresh.
-      // E uma leitura posterior ainda funciona, recomputando do zero.
-      final int before = c.recomputes;
-      s.set(10);
-      expect(c.get(), 11);
-      expect(c.recomputes, before + 1);
-    });
+        // And a later read still works, recomputing fresh.
+        // E uma leitura posterior ainda funciona, recomputando do zero.
+        final int before = c.recomputes;
+        s.set(10);
+        expect(c.get(), 11);
+        expect(c.recomputes, before + 1);
+      },
+    );
   });
 
   group('ReactiveEngine — batching', () {
@@ -236,7 +234,10 @@ void main() {
       endBatch();
 
       expect(e.runs, 2);
-      expect(seen, <int>[0, 5]); // only final consistent state / só o estado final
+      expect(seen, <int>[
+        0,
+        5,
+      ]); // only final consistent state / só o estado final
     });
 
     test('nested batches flush only when the outermost ends', () {

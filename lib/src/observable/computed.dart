@@ -72,8 +72,11 @@ class Computed<T> implements ValueListenable<T> {
   /// para tipos cujo `==` não é significativo para este propósito (ex.:
   /// comparar apenas um subconjunto de campos, ou valores de ponto
   /// flutuante dentro de uma tolerância). Padrão: `(a, b) => a == b`.
-  Computed(T Function() compute, {String? name, bool Function(T a, T b)? equals})
-    : _core = CoreComputed<T>(compute, name: name, equals: equals);
+  Computed(
+    T Function() compute, {
+    String? name,
+    bool Function(T a, T b)? equals,
+  }) : _core = CoreComputed<T>(compute, name: name, equals: equals);
 
   /// The pure-Dart engine this class wraps — see `CoreComputed`'s class
   /// doc.

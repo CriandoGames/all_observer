@@ -42,10 +42,7 @@ void main() {
 
       expect(recorder.events.whereType<ObservableCreateEvent>(), hasLength(1));
       expect(recorder.events.whereType<ObservableUpdateEvent>(), hasLength(1));
-      expect(
-        recorder.events.whereType<ObservableDisposeEvent>(),
-        hasLength(1),
-      );
+      expect(recorder.events.whereType<ObservableDisposeEvent>(), hasLength(1));
 
       final ObservableUpdateEvent update = recorder.events
           .whereType<ObservableUpdateEvent>()
@@ -85,7 +82,10 @@ void main() {
           .whereType<EffectEvent>()
           .toList();
       expect(runs.length, 2); // initial + one re-run
-      expect(runs.every((EffectEvent e) => e.label.contains('myEffect')), isTrue);
+      expect(
+        runs.every((EffectEvent e) => e.label.contains('myEffect')),
+        isTrue,
+      );
       dispose();
     });
 
@@ -98,22 +98,19 @@ void main() {
       expect(recorder.events.whereType<WarningEvent>(), isNotEmpty);
     });
 
-    test(
-      'a throwing inspector does not prevent the notification or other '
-      'inspectors from running',
-      () {
-        final RecordingInspector recorder = RecordingInspector();
-        ObserverConfig.inspectors = <ObserverInspector>[
-          _ThrowingInspector(),
-          recorder,
-        ];
+    test('a throwing inspector does not prevent the notification or other '
+        'inspectors from running', () {
+      final RecordingInspector recorder = RecordingInspector();
+      ObserverConfig.inspectors = <ObserverInspector>[
+        _ThrowingInspector(),
+        recorder,
+      ];
 
-        final Observable<int> count = Observable<int>(1);
-        expect(() => count.value = 2, returnsNormally);
+      final Observable<int> count = Observable<int>(1);
+      expect(() => count.value = 2, returnsNormally);
 
-        expect(recorder.events.whereType<ObservableUpdateEvent>(), hasLength(1));
-      },
-    );
+      expect(recorder.events.whereType<ObservableUpdateEvent>(), hasLength(1));
+    });
 
     test('RecordingInspector caps events at maxEvents (ring buffer)', () {
       final RecordingInspector recorder = RecordingInspector(maxEvents: 3);

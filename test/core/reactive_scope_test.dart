@@ -220,10 +220,7 @@ void main() {
       scope.dispose();
 
       int calls = 0;
-      expect(
-        () => scope.add(() => calls++),
-        throwsA(isA<ObserverError>()),
-      );
+      expect(() => scope.add(() => calls++), throwsA(isA<ObserverError>()));
       expect(
         calls,
         1,
@@ -245,8 +242,9 @@ void main() {
       scope.dispose();
       scope.dispose(); // idempotent: must not dispatch a second event
 
-      final List<ScopeDisposeEvent> events =
-          recorder.events.whereType<ScopeDisposeEvent>().toList();
+      final List<ScopeDisposeEvent> events = recorder.events
+          .whereType<ScopeDisposeEvent>()
+          .toList();
       expect(events, hasLength(1));
       expect(events.single.label, 'ReactiveScope(inspected)');
       expect(events.single.disposedCount, 3);

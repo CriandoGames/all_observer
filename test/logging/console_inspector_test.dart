@@ -81,46 +81,40 @@ void main() {
   });
 
   group('ObserverLogger + ConsoleInspector wiring', () {
-    test(
-      'registering an extra ObserverInspector does not duplicate, change, '
-      'or silence the default console output',
-      () {
-        ObserverConfig.logging = true;
-        final RecordingInspector recorder = RecordingInspector();
-        ObserverConfig.inspectors = <ObserverInspector>[recorder];
+    test('registering an extra ObserverInspector does not duplicate, change, '
+        'or silence the default console output', () {
+      ObserverConfig.logging = true;
+      final RecordingInspector recorder = RecordingInspector();
+      ObserverConfig.inspectors = <ObserverInspector>[recorder];
 
-        final List<String> lines = _captureDebugPrint(() {
-          ObserverLogger.created('Observable(x)', 1);
-        });
+      final List<String> lines = _captureDebugPrint(() {
+        ObserverLogger.created('Observable(x)', 1);
+      });
 
-        expect(lines, hasLength(1));
-        expect(lines.single, contains('Observable(x) criado'));
-        expect(recorder.events, hasLength(1));
-        expect(recorder.events.single, isA<ObservableCreateEvent>());
-      },
-    );
+      expect(lines, hasLength(1));
+      expect(lines.single, contains('Observable(x) criado'));
+      expect(recorder.events, hasLength(1));
+      expect(recorder.events.single, isA<ObservableCreateEvent>());
+    });
 
-    test(
-      'dispatch: false skips the extra-inspector fan-out but console '
-      'output still runs (e.g. Observable/Computed after CoreObservable '
-      'already dispatched)',
-      () {
-        ObserverConfig.logging = true;
-        final RecordingInspector recorder = RecordingInspector();
-        ObserverConfig.inspectors = <ObserverInspector>[recorder];
+    test('dispatch: false skips the extra-inspector fan-out but console '
+        'output still runs (e.g. Observable/Computed after CoreObservable '
+        'already dispatched)', () {
+      ObserverConfig.logging = true;
+      final RecordingInspector recorder = RecordingInspector();
+      ObserverConfig.inspectors = <ObserverInspector>[recorder];
 
-        final List<String> lines = _captureDebugPrint(() {
-          ObserverLogger.created('Observable(x)', 1, dispatch: false);
-        });
+      final List<String> lines = _captureDebugPrint(() {
+        ObserverLogger.created('Observable(x)', 1, dispatch: false);
+      });
 
-        expect(lines, hasLength(1));
-        expect(lines.single, contains('Observable(x) criado'));
-        expect(
-          recorder.events,
-          isEmpty,
-          reason: 'dispatch: false must only skip ObserverConfig.inspectors',
-        );
-      },
-    );
+      expect(lines, hasLength(1));
+      expect(lines.single, contains('Observable(x) criado'));
+      expect(
+        recorder.events,
+        isEmpty,
+        reason: 'dispatch: false must only skip ObserverConfig.inspectors',
+      );
+    });
   });
 }

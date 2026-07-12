@@ -207,7 +207,8 @@ class Observable<T> implements ValueListenable<T> {
         DependencyTracker.current != null) {
       ObserverLogger.warn(
         '$_label alterado DURANTE o build de um Observer.',
-        suggestion: 'Isso causa loop de rebuild. Mova a alteração para '
+        suggestion:
+            'Isso causa loop de rebuild. Mova a alteração para '
             'fora do build.',
         dispatch: false,
       );

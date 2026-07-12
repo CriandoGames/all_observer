@@ -96,9 +96,7 @@ void main() {
     test('batched writes settle to one notification with final values', () {
       final CoreObservable<int> a = CoreObservable<int>(0);
       final CoreObservable<int> b = CoreObservable<int>(0);
-      final CoreComputed<int> sum = CoreComputed<int>(
-        () => a.value + b.value,
-      );
+      final CoreComputed<int> sum = CoreComputed<int>(() => a.value + b.value);
       final List<int> seen = <int>[];
       sum.listen(seen.add);
 
@@ -152,6 +150,87 @@ void main() {
       expect(notifications, 0);
       expect(c.value, 1); // último valor congelado / last value frozen
       expect(c.isClosed, isTrue);
+    });
+
+    test('untracked() inside CoreComputed does not create engine links', () {
+      final CoreObservable<int> tracked = CoreObservable<int>(1);
+      final CoreObservable<int> ignored = CoreObservable<int>(10);
+      int computes = 0;
+      final CoreComputed<int> derived = CoreComputed<int>(() {
+        computes++;
+        return tracked.value + untracked(() => ignored.value);
+      });
+
+      expect(derived.value, 11);
+      expect(computes, 1);
+
+      ignored.value = 20;
+      expect(computes, 1);
+      expect(derived.value, 11);
+      expect(computes, 1);
+
+      tracked.value = 2;
+      expect(derived.value, 22);
+      expect(computes, 2);
+
+      expect(tracked.registry.engineNode!.subs, isNotNull);
+      expect(ignored.registry.engineNode, isNull);
+    });
+
+    test('CoreComputed.close() during another recompute is safe', () {
+      final CoreObservable<int> source = CoreObservable<int>(0);
+      final CoreComputed<int> closing = CoreComputed<int>(
+        () => source.value + 1,
+      );
+      final CoreComputed<int> survivor = CoreComputed<int>(
+        () => source.value + 10,
+      );
+      late final CoreComputed<int> owner;
+      owner = CoreComputed<int>(() {
+        final int value = source.value;
+        if (value == 1) {
+          closing.close();
+        }
+        return value + closing.value + survivor.value;
+      });
+
+      final List<int> seen = <int>[];
+      owner.listen(seen.add);
+      expect(owner.value, 11);
+
+      source.value = 1;
+
+      expect(closing.isClosed, isTrue);
+      expect(seen, <int>[13]);
+
+      source.value = 2;
+
+      expect(owner.value, 15);
+      expect(survivor.value, 12);
+      expect(seen, <int>[13, 15]);
+    });
+
+    test('value reverted inside same batch does not notify downstream', () {
+      final CoreObservable<int> source = CoreObservable<int>(0);
+      int computes = 0;
+      final CoreComputed<int> derived = CoreComputed<int>(() {
+        computes++;
+        return source.value;
+      });
+      int notifications = 0;
+      derived.listen((_) => notifications++);
+
+      expect(derived.value, 0);
+      computes = 0;
+
+      BatchScope.run(() {
+        source.value = 1;
+        source.value = 0;
+      });
+
+      expect(derived.value, 0);
+      expect(computes, 1);
+      expect(notifications, 0);
     });
   });
 }
