@@ -71,6 +71,15 @@ assinantes manuais (`listen`/`ever`) quando você escreve em vários
 observáveis em uma única ação lógica. Ver
 [Avançado](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/advanced.md).
 
+## Posso escrever em um `Observable` dentro de `effect()`?
+
+Sim, quando for intencional, mas prefira métodos de controller ou workers
+para mudanças de estado que podem ser modeladas diretamente. Se um effect
+escreve depois de ler uma dependência, o all_observer suprime a
+autoexecução duplicada causada por aquele mesmo flush, mantendo atualizações
+externas posteriores reativas. Use `untracked()` ou `.peek()` para leituras
+que não devem virar dependências.
+
 ## É pronto para produção? Quantos testes tem?
 
 225 testes na v1.3.0, cobrindo o rastreador de dependências do núcleo,

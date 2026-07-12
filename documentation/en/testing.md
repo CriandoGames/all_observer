@@ -161,6 +161,17 @@ Full file:
 Always pair `strictMode = true` in `setUp` with `ObserverConfig.reset()` in
 `tearDown` so it can't leak into unrelated tests in the same suite.
 
+## Regression tests for effects and graph churn
+
+When changing scheduler internals, keep targeted regression tests around
+`effect()` and graph mutation. The package suite covers effects that write
+after reading a derived value, self-dispose during the callback, disposal of
+the owning `ReactiveScope`, `untracked()` inside `CoreComputed`, graph
+changes during dirty checking, and batch-flush exception isolation. Those
+tests are intentionally small and should stay active: they protect the
+cases most likely to regress when batching, dependency tracking, or the
+engine bridge changes.
+
 ## Recommended testable architecture
 
 The example app extracts business logic out of `State` and into small

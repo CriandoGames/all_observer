@@ -67,6 +67,14 @@ purely to *coalesce* notifications to manual (`listen`/`ever`) subscribers
 when you write to several observables in one logical action. See
 [Advanced](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/advanced.md).
 
+## Can I write to an `Observable` inside `effect()`?
+
+Yes, when it is intentional, but prefer controller methods or workers for
+state changes that can be modeled directly. If an effect writes after
+reading a dependency, all_observer suppresses the duplicate self-run caused
+by that same flush while keeping later external updates reactive. Use
+`untracked()` or `.peek()` for reads that should not become dependencies.
+
 ## Is it production-ready? How many tests does it have?
 
 225 tests as of v1.3.0, covering the core dependency tracker, `Computed`

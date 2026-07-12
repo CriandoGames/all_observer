@@ -165,6 +165,17 @@ Sempre combine `strictMode = true` no `setUp` com `ObserverConfig.reset()`
 no `tearDown`, para que não vaze para testes não relacionados na mesma
 suíte.
 
+## Testes de regressão para effects e churn do grafo
+
+Ao mudar internals de scheduler, mantenha testes de regressão direcionados
+para `effect()` e mutação de grafo. A suíte do pacote cobre effects que
+escrevem depois de ler um valor derivado, autodescarte durante o callback,
+descarte do `ReactiveScope` dono, `untracked()` dentro de `CoreComputed`,
+mudanças de grafo durante dirty checking e isolamento de exceções no flush
+de batch. Esses testes são pequenos de propósito e devem continuar ativos:
+eles protegem os casos mais propensos a regredir quando batching,
+rastreamento de dependências ou a ponte do motor mudarem.
+
 ## Arquitetura testável recomendada
 
 O app de exemplo extrai a lógica de negócio do `State` para pequenas
