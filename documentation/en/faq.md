@@ -77,9 +77,10 @@ by that same flush while keeping later external updates reactive. Use
 
 ## Is it production-ready? How many tests does it have?
 
-225 tests as of v1.3.0, covering the core dependency tracker, `Computed`
-diamond/cycle scenarios, collections' notify-at-most-once contract, async
-race safety, workers, and the debug logging/inspector system. See
+The package maintains a broad regression suite covering the core dependency
+tracker, `Computed` diamond/cycle scenarios, graph mutation during flushes,
+effect scheduling/disposal, collections' notify-at-most-once contract,
+async race safety, workers, and the debug logging/inspector system. See
 `ARCHITECTURE.md` in the repository root for the design rationale behind
 the glitch-free guarantee specifically.
 

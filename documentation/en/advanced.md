@@ -431,9 +431,10 @@ actual `Observer`/widget.
 - Use `RecordingInspector` (registered via `ObserverConfig.inspectors`) to
   assert on the exact sequence of create/update/dispose events a piece of
   code produced, when a plain value assertion isn't precise enough.
-- The package's own suite (225 tests as of v1.3.0) lives under `/test`,
-  organized by area (`observable/`, `widgets/`, `workers/`, `async/`,
-  `core/`) — a useful reference for testing patterns against this API.
+- The package's own suite lives under `/test`, organized by area
+  (`observable/`, `widgets/`, `workers/`, `async/`, `core/`,
+  `effects/`, `engine/`, `regressions/`) — a useful reference for testing
+  patterns against this API.
 
 ---
 

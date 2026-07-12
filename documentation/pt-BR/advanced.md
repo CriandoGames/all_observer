@@ -448,9 +448,10 @@ ler/escrever/afirmar diretamente em `flutter_test`/`test`, sem precisar de
   para afirmar sobre a sequência exata de eventos de
   criação/atualização/descarte que um trecho de código produziu, quando
   uma asserção simples de valor não for precisa o suficiente.
-- A suíte do próprio pacote (225 testes na v1.3.0) fica em `/test`,
-  organizada por área (`observable/`, `widgets/`, `workers/`, `async/`,
-  `core/`) — uma referência útil para padrões de teste contra esta API.
+- A suíte do próprio pacote fica em `/test`, organizada por área
+  (`observable/`, `widgets/`, `workers/`, `async/`, `core/`, `effects/`,
+  `engine/`, `regressions/`) — uma referência útil para padrões de teste
+  contra esta API.
 
 ---
 

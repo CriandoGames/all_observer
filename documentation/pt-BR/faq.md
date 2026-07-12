@@ -82,12 +82,13 @@ que não devem virar dependências.
 
 ## É pronto para produção? Quantos testes tem?
 
-225 testes na v1.3.0, cobrindo o rastreador de dependências do núcleo,
-cenários de diamante/ciclo do `Computed`, o contrato de notificar-no-
--máximo-uma-vez das coleções, segurança contra corrida assíncrona,
-workers, e o sistema de logging/inspector de debug. Veja
-`ARCHITECTURE.md` na raiz do repositório para a fundamentação do design
-por trás da garantia de ser livre de glitch especificamente.
+O pacote mantém uma suíte ampla de regressão cobrindo o rastreador de
+dependências do núcleo, cenários de diamante/ciclo do `Computed`, mutação de
+grafo durante flushes, agendamento/descarte de effects, o contrato de
+notificar-no-máximo-uma-vez das coleções, segurança contra corrida
+assíncrona, workers e o sistema de logging/inspector de debug. Veja
+`ARCHITECTURE.md` na raiz do repositório para a fundamentação do design por
+trás da garantia de ser livre de glitch especificamente.
 
 ## O que acontece se uma exceção for lançada dentro de um listener/effect/inspector?
 
