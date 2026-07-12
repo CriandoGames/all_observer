@@ -43,8 +43,18 @@ const int kMaxFlushWaves = 100;
 abstract final class BatchScope {
   static int _depth = 0;
   static bool _flushing = false;
+  static int _flushEpoch = 0;
   static final Set<ListenerRegistry> _pending = <ListenerRegistry>{};
   static final Set<void Function()> _dirtyFlushCallbacks = <void Function()>{};
+
+  /// Monotonic identifier for the currently running batch flush. Intended for
+  /// internal schedulers that need to distinguish invalidations from the same
+  /// flush wave from future external writes.
+  ///
+  /// Identificador monotônico do flush de batch em execução. Destinado a
+  /// schedulers internos que precisam distinguir invalidações do mesmo flush
+  /// de escritas externas futuras.
+  static int get flushEpoch => _flushEpoch;
 
   /// Whether a `batch()` call is currently active (depth > 0), OR the
   /// outermost `batch()` call is currently flushing its queued
@@ -166,6 +176,7 @@ abstract final class BatchScope {
   // estabilizado e o notificado, em uma onda posterior deste mesmo loop.
   static void _flushPending() {
     _flushing = true;
+    _flushEpoch++;
     int waves = 0;
     try {
       while (_pending.isNotEmpty || _dirtyFlushCallbacks.isNotEmpty) {

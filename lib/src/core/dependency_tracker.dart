@@ -24,6 +24,7 @@ class TrackingContext {
     this.onDependencyChanged, {
     this.ownerLabel,
     this.subscribes = true,
+    this.onTrackedWrite,
   });
 
   /// Invoked when any observable read during this context later changes.
@@ -47,6 +48,15 @@ class TrackingContext {
   /// motor, então nenhum listener de registry é registrado (e nenhum
   /// precisa de descarte).
   final bool subscribes;
+
+  /// Optional hook invoked when code writes to a [CoreObservable] while this
+  /// context is active. Effects use it to recognize self-invalidations caused
+  /// by their own body during a batch flush.
+  ///
+  /// Gancho opcional chamado quando um código escreve em um [CoreObservable]
+  /// enquanto este contexto está ativo. Effects usam isso para reconhecer
+  /// auto-invalidações causadas pelo próprio corpo durante um flush de batch.
+  final void Function()? onTrackedWrite;
 
   /// Debug label of the Observer/Computed/Effect that owns this context, if
   /// known. Only used to populate `ObserverInspector.onTrack` events — has

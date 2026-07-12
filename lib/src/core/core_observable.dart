@@ -241,9 +241,11 @@ class CoreObservable<T> {
   }
 
   void _checkWriteDuringTracking() {
-    if (DependencyTracker.current == null) {
+    final TrackingContext? context = DependencyTracker.current;
+    if (context == null) {
       return;
     }
+    context.onTrackedWrite?.call();
     final String message = '$label alterado DURANTE o build de um Observer.';
     if (ObserverConfig.strictMode) {
       throw ObserverError(message);

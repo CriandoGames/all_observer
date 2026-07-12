@@ -241,10 +241,39 @@ void main() {
       dispose();
     });
 
+    test('write inside effect during flush keeps later updates alive', () {
+      final Observable<int> source = Observable<int>(0);
+      final Computed<int> computedValue = Computed<int>(() => source.value);
+      int runs = 0;
+
+      final Disposer dispose = effect(() {
+        runs++;
+        if (computedValue.value > 0) {
+          source.value = 0;
+        }
+      });
+
+      expect(runs, 1);
+
+      source.value = 1;
+      expect(source.value, 0);
+      expect(runs, 2);
+
+      source.value = 2;
+      expect(source.value, 0);
+      expect(runs, 3);
+
+      source.value = 3;
+      expect(source.value, 0);
+      expect(runs, 4);
+
+      dispose();
+    });
+
     test(
-      'write inside effect during flush keeps later updates alive',
+      'write inside initial effect run does not schedule a duplicate run',
       () {
-        final Observable<int> source = Observable<int>(0);
+        final Observable<int> source = Observable<int>(1);
         final Computed<int> computedValue = Computed<int>(() => source.value);
         int runs = 0;
 
@@ -255,25 +284,15 @@ void main() {
           }
         });
 
-        expect(runs, 1);
-
-        source.value = 1;
         expect(source.value, 0);
-        expect(runs, 2);
+        expect(runs, 1);
 
         source.value = 2;
         expect(source.value, 0);
-        expect(runs, 3);
-
-        source.value = 3;
-        expect(source.value, 0);
-        expect(runs, 4);
+        expect(runs, 2);
 
         dispose();
       },
-      skip:
-          'Known semantic gap: writes inside effect currently trigger a '
-          'compensating run with the final value.',
     );
 
     test('exception during run is reported, naming the effect', () {

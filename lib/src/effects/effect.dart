@@ -90,6 +90,7 @@ class _Effect {
   bool _isDisposed = false;
   bool _dirty = false;
   bool _warnedEmptyOnce = false;
+  int? _ignoreInvalidationsFromFlushEpoch;
 
   String get _label => 'Effect(${_name ?? '#$hashCode'})';
 
@@ -101,6 +102,7 @@ class _Effect {
     final TrackingContext context = TrackingContext(
       _onDependencyChanged,
       ownerLabel: _label,
+      onTrackedWrite: _markTrackedWrite,
     );
     try {
       DependencyTracker.track(context, _run);
@@ -133,6 +135,9 @@ class _Effect {
         _dependencyDisposers = <Disposer>[];
       } else {
         _dependencyDisposers = context.disposers;
+      }
+      if (!BatchScope.isActive) {
+        _ignoreInvalidationsFromFlushEpoch = null;
       }
     }
     dispatchToInspectors(
@@ -175,6 +180,13 @@ class _Effect {
     if (_isDisposed) {
       return;
     }
+    final int? ignoredFlushEpoch = _ignoreInvalidationsFromFlushEpoch;
+    if (ignoredFlushEpoch != null) {
+      if (BatchScope.isActive && ignoredFlushEpoch == BatchScope.flushEpoch) {
+        return;
+      }
+      _ignoreInvalidationsFromFlushEpoch = null;
+    }
     if (BatchScope.isActive) {
       if (!_dirty) {
         _dirty = true;
@@ -191,6 +203,12 @@ class _Effect {
     }
     _dirty = false;
     _execute();
+  }
+
+  void _markTrackedWrite() {
+    _ignoreInvalidationsFromFlushEpoch = BatchScope.isActive
+        ? BatchScope.flushEpoch
+        : BatchScope.flushEpoch + 1;
   }
 
   void _clearDependencies() {
@@ -211,6 +229,7 @@ class _Effect {
     }
     _clearDependencies();
     _dirty = false;
+    _ignoreInvalidationsFromFlushEpoch = null;
     _isDisposed = true;
   }
 }
