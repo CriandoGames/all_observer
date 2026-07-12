@@ -29,6 +29,13 @@ Quando `isLoggedIn` é `false`, este `Observer` depende só de `isLoggedIn` —
 causa rebuild. No momento em que `isLoggedIn` vira `true` e o widget
 reconstrói, `user` também se torna uma dependência rastreada.
 
+A mesma regra vale para `effect()`: cada execução troca o conjunto anterior
+de dependências pelo que o callback leu desta vez. Effects são agendados no
+máximo uma vez por flush de batch, e uma escrita feita pelo próprio effect
+durante esse flush não dispara uma autoexecução duplicada. Uma escrita
+externa posterior em uma das dependências rastreadas continua agendando a
+próxima execução normalmente.
+
 ## `Observable<T>`
 
 Crie um com `.obs` (`0.obs`, `'oi'.obs`, `false.obs`, `9.99.obs`,

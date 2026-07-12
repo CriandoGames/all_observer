@@ -29,6 +29,12 @@ When `isLoggedIn` is `false`, this `Observer` depends only on `isLoggedIn` —
 rebuild. The moment `isLoggedIn` flips to `true` and the widget rebuilds,
 `user` becomes a tracked dependency too.
 
+The same rule applies to `effect()`: every run replaces the previous
+dependency set with what the callback read this time. Effects are scheduled
+at most once per batch flush, and a write made by the effect itself during
+that flush does not trigger a duplicate self-run. A later external write to
+one of its tracked dependencies still schedules the next run normally.
+
 ## `Observable<T>`
 
 Create one with `.obs` (`0.obs`, `'hi'.obs`, `false.obs`, `9.99.obs`,

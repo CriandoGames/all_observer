@@ -159,6 +159,15 @@ para o caso comum de um único observável; `effect` é para callbacks que
 leem mais de um observável, ou cujas dependências mudam condicionalmente
 entre execuções.
 
+Prefira manter escritas em métodos de controller ou workers, não dentro de
+um `effect()` que também lê o mesmo grafo. Quando um effect escreve
+intencionalmente em um observável depois de ler um valor derivado, o
+all_observer agrupa essa autoinvalidação durante o mesmo flush de batch: o
+effect não roda uma passada compensatória duplicada, e escritas externas
+posteriores continuam agendando normalmente. Use `untracked()` ou `.peek()`
+para leituras que só servem para decidir o que escrever e não devem virar
+dependências.
+
 ## Rebuilds cirúrgicos com `watch(context)`
 
 ```dart

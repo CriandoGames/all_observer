@@ -152,6 +152,14 @@ remain the right tool for the common single-observable case; `effect` is
 for callbacks that read more than one observable, or whose dependencies
 change conditionally between runs.
 
+Prefer keeping writes in controller methods or workers, not inside an
+`effect()` that also reads the same graph. When an effect intentionally
+writes to an observable after reading a derived value, all_observer
+coalesces that self-invalidation during the same batch flush: the effect
+does not run a duplicate compensating pass, and later external writes still
+schedule normally. Use `untracked()` or `.peek()` for reads that are only
+needed to decide what to write and should not become dependencies.
+
 ## Surgical rebuilds with `watch(context)`
 
 ```dart

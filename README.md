@@ -44,7 +44,7 @@ flutter pub add all_observer
 
 ```yaml
 dependencies:
-  all_observer: ^1.5.3
+  all_observer: ^1.5.4
 ```
 
 ```dart

@@ -1,3 +1,22 @@
+## 1.5.4
+
+Patch release focused on effect scheduler safety and regression coverage for
+push-pull graph edge cases.
+
+- `effect()` now suppresses self-invalidations caused by writes made inside
+  the effect body during the same batch flush. This prevents a duplicate
+  compensating run while preserving later external updates.
+- `effect()` disposal is safer during re-entrant execution: disposing an
+  effect, or its owning `ReactiveScope`, from inside the callback now removes
+  freshly tracked dependencies instead of restoring stale listeners.
+- Added regression coverage for graph mutations during dirty checking,
+  subscriber disposal while sibling subscribers update, dependencies losing
+  their last subscriber, `CoreComputed.close()` during recomputation,
+  `untracked()` inside `CoreComputed`, same-batch value reverts, batch-flush
+  exception isolation, nested effect ownership, and Dart2JS compilation of
+  `core.dart`/`engine.dart`.
+- No breaking changes and no new dependencies.
+
 ## 1.5.3
 
 Patch release focused on async safety and regression hardening.
