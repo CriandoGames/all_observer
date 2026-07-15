@@ -27,6 +27,41 @@ void main() {
   tearDown(ObserverConfig.reset);
 
   group('multi-listener benchmark warning audit', () {
+    test('single-listener notification is the positive control', () {
+      final RecordingInspector recorder = RecordingInspector();
+      ObserverConfig.warnings = false;
+      ObserverConfig.inspectors.add(recorder);
+      final Observable<int> counter = Observable<int>(
+        0,
+        name: 'single-listener-counter',
+      );
+      int calls = 0;
+
+      final ObservableSubscription subscription = counter.listen(
+        (int _) => calls++,
+      );
+
+      expect(counter.hasListeners, isTrue);
+      expect(_listenerLeakWarnings(recorder), isEmpty);
+
+      counter.value = 1;
+      expect(calls, 1);
+
+      subscription.cancel();
+      expect(subscription.isActive, isFalse);
+      expect(counter.hasListeners, isFalse);
+
+      counter.value = 2;
+      expect(calls, 1);
+
+      recorder.clear();
+      counter.close();
+      final ObservableDisposeEvent disposeEvent = recorder.events
+          .whereType<ObservableDisposeEvent>()
+          .single;
+      expect(disposeEvent.listenerCount, 0);
+    });
+
     test(
       '1k active listeners trips the leak heuristic but cancels cleanly',
       () {
