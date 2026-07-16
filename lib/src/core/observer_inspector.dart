@@ -191,6 +191,11 @@ class ScopeDisposeEvent extends ObservableEvent {
 /// por quem chama — mesmo princípio de um listener que lança — e nunca
 /// quebra a notificação que estava sendo reportada.
 abstract class ObserverInspector {
+  /// Creates an inspector with no retained state.
+  ///
+  /// Cria um inspector sem estado retido.
+  const ObserverInspector();
+
   /// Called when an observable/Computed is created.
   ///
   /// Chamado quando um observável/Computed é criado.

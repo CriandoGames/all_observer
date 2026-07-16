@@ -36,6 +36,11 @@ int _notificationDepth = 0;
 /// forma segura, tolerando listeners que adicionam/removem outros listeners
 /// durante a notificação.
 class ListenerRegistry {
+  /// Creates an empty listener registry.
+  ///
+  /// Cria um registro de listeners vazio.
+  ListenerRegistry();
+
   // A LinkedHashSet gives O(1) add/remove/contains (versus a List's O(n)
   // linear scan for `contains`/`remove`), while still preserving insertion
   // order for iteration/snapshotting, and natively deduplicating listeners
