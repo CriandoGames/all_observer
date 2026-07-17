@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -19,8 +20,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Run analyzer
+        run: flutter analyze
+
       - name: Run tests
         run: flutter test
+
+      - name: Validate package
+        run: flutter pub publish --dry-run
 
       - name: Run performance regression guards
         run: flutter test benchmark/performance_guard_test.dart

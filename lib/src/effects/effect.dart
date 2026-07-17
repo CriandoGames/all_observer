@@ -197,7 +197,15 @@ class _Effect {
     final int? ignoredFlushEpoch = _ignoreInvalidationsFromFlushEpoch;
     if (ignoredFlushEpoch != null) {
       if (BatchScope.isActive && ignoredFlushEpoch == BatchScope.flushEpoch) {
-        if (dependency == null || _isSelfInvalidation(dependency)) {
+        if (dependency == null) {
+          _writtenDuringTrackedRun.clear();
+          _ignoreInvalidationsFromFlushEpoch = null;
+          return;
+        }
+        if (_consumeSelfInvalidation(dependency)) {
+          if (_writtenDuringTrackedRun.isEmpty) {
+            _ignoreInvalidationsFromFlushEpoch = null;
+          }
           return;
         }
       } else {
@@ -230,9 +238,12 @@ class _Effect {
         : BatchScope.flushEpoch + 1;
   }
 
-  bool _isSelfInvalidation(ListenerRegistry dependency) {
-    for (final ListenerRegistry written in _writtenDuringTrackedRun) {
+  bool _consumeSelfInvalidation(ListenerRegistry dependency) {
+    for (final ListenerRegistry written in List<ListenerRegistry>.of(
+      _writtenDuringTrackedRun,
+    )) {
       if (identical(written, dependency)) {
+        _writtenDuringTrackedRun.remove(written);
         return true;
       }
       final ReactiveNode? writtenNode = written.engineNode;
@@ -240,6 +251,7 @@ class _Effect {
       if (writtenNode != null &&
           dependencyNode != null &&
           _dependsOn(dependencyNode, writtenNode)) {
+        _writtenDuringTrackedRun.remove(written);
         return true;
       }
     }

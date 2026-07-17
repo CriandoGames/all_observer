@@ -1,3 +1,21 @@
+## 1.5.6
+
+Patch release focused on the remaining 1.5.5 audit gaps for same-flush
+effects, `ObservableSet` atomicity, `toSet()` tracking, and CI hardening.
+
+- `effect()` now consumes same-registry self-invalidation suppression once, so
+  a later external write to the same observable in the same flush is still
+  observed.
+- `ObservableSet.addAll()` is atomic when the source iterable throws, matching
+  the list behavior and avoiding silent partial mutations.
+- `ObservableSet.toSet()` now registers a reactive read, so `Computed` and
+  `effect()` bodies based only on `toSet()` update correctly.
+- Added remaining-risk audit tests plus permanent regression coverage for the
+  confirmed issues. Full suite now covers 405 tests.
+- CI now runs `flutter analyze`, `flutter test`, and
+  `flutter pub publish --dry-run`, with manual dispatch support.
+- No breaking changes and no new dependencies.
+
 ## 1.5.5
 
 Patch release focused on audit-confirmed correctness fixes for reactive

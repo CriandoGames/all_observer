@@ -94,8 +94,9 @@ class ObservableSet<E> extends SetBase<E> with CollectionSupport {
     if (isMutationBlocked) {
       return;
     }
+    final Set<E> pending = Set<E>.of(elements);
     final int before = _set.length;
-    _set.addAll(elements);
+    _set.addAll(pending);
     if (_set.length != before) {
       notifyChanged();
     }
@@ -134,5 +135,8 @@ class ObservableSet<E> extends SetBase<E> with CollectionSupport {
   }
 
   @override
-  Set<E> toSet() => Set<E>.of(_set);
+  Set<E> toSet() {
+    reportRead();
+    return Set<E>.of(_set);
+  }
 }
