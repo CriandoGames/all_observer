@@ -5,7 +5,7 @@
 [![pub package](https://img.shields.io/pub/v/all_observer.svg)](https://pub.dev/packages/all_observer)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![pub points](https://img.shields.io/pub/points/all_observer?label=pub%20points)](https://pub.dev/packages/all_observer/score)
-![354 testes](https://img.shields.io/badge/tests-225-brightgreen)
+![389 testes](https://img.shields.io/badge/tests-389-brightgreen)
 
 Estado reativo para Flutter sem dependências — `final count = 0.obs;` +
 `Observer(...)` e pronto.
@@ -44,7 +44,7 @@ flutter pub add all_observer
 
 ```yaml
 dependencies:
-  all_observer: ^1.5.4
+  all_observer: ^1.5.5
 ```
 
 ```dart

@@ -1,3 +1,28 @@
+## 1.5.5
+
+Patch release focused on audit-confirmed correctness fixes for reactive
+failure recovery, closed async resources, and collection atomicity.
+
+- `Computed` now retries correctly after an initial compute error instead of
+  leaving the derivation poisoned by the failed evaluation.
+- `effect()` now cleans up tracked dependencies when creation throws, avoiding
+  inaccessible zombie effects that could run again on later dependency writes.
+- `effect()` scheduling now distinguishes direct self-invalidations from
+  indirect same-flush invalidations, so chained effect/computed graphs converge
+  to the latest value.
+- Failed `Observable.batch()` calls still discard queued direct notifications,
+  but already-live computed dependents are marked stale so the next read
+  reconciles with the mutated source value.
+- `ObservableFuture.run()` and `ObservableStream.run()` are no-ops after
+  `close()`, preventing closed async resources from starting new work or stream
+  subscriptions.
+- `ObservableList.addAll()`, `insertAll()`, `assignAll()`, and `sort()` are
+  atomic when the source iterable or comparator throws; the list remains
+  unchanged and no notification is emitted.
+- Added audit tests plus permanent regression coverage for the confirmed
+  issues. Full suite now covers 389 tests.
+- No breaking changes and no new dependencies.
+
 ## 1.5.4
 
 Patch release focused on effect scheduler safety and regression coverage for

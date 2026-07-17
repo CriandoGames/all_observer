@@ -3,7 +3,8 @@
 ## Baseline
 
 - Baseline commit: `861325f42ce7419834102d4b13f044b25c2d1efb`
-- Library version: `1.5.4` (`pubspec.yaml`)
+- Baseline library version: `1.5.4` (`pubspec.yaml` at baseline)
+- Target patch release: `1.5.5`
 - Flutter: `3.44.6` stable, framework `ee80f08bbf`
 - Dart: `3.12.2` on `windows_x64`
 - OS: Microsoft Windows 11 Pro `10.0.26200`, 64 bits
@@ -77,8 +78,10 @@ flutter test --coverage
 ## Post-correction verification
 
 - `flutter test test/audit/`: passed, `9` tests.
-- `flutter test test/regressions`: passed, existing regression tests unchanged.
-- Full suite and analyzer must be run after any further change.
+- `flutter test test/regressions`: passed, `51` tests.
+- `flutter test`: passed, `389` tests.
+- `flutter test --coverage`: passed, `389` tests.
+- `flutter analyze`: passed, `No issues found!`.
 
 ## Relevant production files
 
@@ -97,6 +100,7 @@ These production files are related to the corrected behaviors:
 ## Notes
 
 - Production code was changed after the validation phase to fix the P0 findings.
-- Existing tests under `test/regressions/` were not modified.
+- Existing tests under `test/regressions/` were not modified; the confirmed
+  audit scenarios were promoted into a new regression file.
 - No assertions were weakened.
 - The audit tests now assert the corrected behavior for the fixed hypotheses.
