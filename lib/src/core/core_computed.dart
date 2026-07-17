@@ -207,12 +207,16 @@ class CoreComputed<T> {
       ownerLabel: label,
       subscribes: false,
     );
+    var completed = false;
     try {
       _value = DependencyTracker.track(context, _compute);
       _hasValue = true;
+      completed = true;
     } finally {
       engine.activeSub = prevSub;
-      _node.flags = _node.flags & ~ReactiveFlags.recursedCheck;
+      _node.flags = completed
+          ? ReactiveFlags.mutable
+          : ReactiveFlags.mutableDirty;
       // Once live, always watched (until [close]): this keeps the package's
       // long-standing contract that a live computed settles eagerly on
       // every batch flush — listeners or not — including retrying after a
@@ -248,15 +252,19 @@ class CoreComputed<T> {
       subscribes: false,
     );
     bool changed = false;
+    var completed = false;
     try {
       ++engine.cycle;
       final T newValue = DependencyTracker.track(context, _compute);
       changed = !_hasValue || !_equals(_value, newValue);
       _hasValue = true;
       _value = newValue;
+      completed = true;
     } finally {
       engine.activeSub = prevSub;
-      _node.flags = _node.flags & ~ReactiveFlags.recursedCheck;
+      _node.flags = completed
+          ? ReactiveFlags.mutable
+          : ReactiveFlags.mutableDirty;
       purgeDeps(_node);
     }
     if (changed) {

@@ -176,7 +176,8 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
     if (isMutationBlocked) {
       return;
     }
-    _list.addAll(iterable);
+    final List<E> elements = List<E>.of(iterable);
+    _list.addAll(elements);
     notifyChanged();
   }
 
@@ -224,7 +225,10 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
     if (isMutationBlocked) {
       return;
     }
-    _list.sort(compare);
+    final List<E> sorted = List<E>.of(_list)..sort(compare);
+    for (var i = 0; i < sorted.length; i++) {
+      _list[i] = sorted[i];
+    }
     notifyChanged();
   }
 
@@ -289,7 +293,8 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
     if (isMutationBlocked) {
       return;
     }
-    _list.insertAll(index, iterable);
+    final List<E> elements = List<E>.of(iterable);
+    _list.insertAll(index, elements);
     notifyChanged();
   }
 
@@ -328,9 +333,10 @@ class ObservableList<E> extends ListBase<E> with CollectionSupport {
     if (isMutationBlocked) {
       return;
     }
+    final List<E> elements = List<E>.of(iterable);
     _list
       ..clear()
-      ..addAll(iterable);
+      ..addAll(elements);
     notifyChanged();
   }
 

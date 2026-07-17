@@ -154,6 +154,9 @@ class ObservableStream<T> extends Observable<AsyncState<T>> {
   /// resultante simplesmente nunca é escrito, já que escritas em um
   /// [Observable] fechado já são um no-op.
   void run() {
+    if (isClosed) {
+      return;
+    }
     final int generation = ++_generation;
     _cancelSubscription(
       _subscription,

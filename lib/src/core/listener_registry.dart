@@ -237,6 +237,46 @@ class ListenerRegistry {
     }
   }
 
+  /// Marks engine-graph dependents as stale without invoking plain
+  /// listeners. Used when a batch aborts after applying writes: manual
+  /// notifications are intentionally discarded, but already-live Computeds
+  /// must not keep a stale cached value forever.
+  ///
+  /// Marca dependentes no grafo do motor como obsoletos sem invocar
+  /// listeners comuns. Usado quando um batch aborta depois de aplicar
+  /// escritas: notificações manuais são descartadas intencionalmente, mas
+  /// Computeds já vivos não podem manter cache obsoleto indefinidamente.
+  void markEngineStaleWithoutNotifyingListeners() {
+    final ReactiveNode? engineNode = this.engineNode;
+    if (engineNode is! RegistrySignalNode) {
+      return;
+    }
+    final ReactiveLink? engineSubs = engineNode.subs;
+    if (engineSubs == null) {
+      return;
+    }
+    engineNode.flags = ReactiveFlags.mutableDirty;
+    _propagateEngineStaleWithoutNotify(engineSubs);
+  }
+
+  static void _propagateEngineStaleWithoutNotify(ReactiveLink link) {
+    ReactiveLink? current = link;
+    while (current != null) {
+      final ReactiveNode sub = current.sub;
+      final ReactiveFlags flags = sub.flags;
+      if (!flags.hasAny(ReactiveFlags.propagationState)) {
+        sub.flags = flags | ReactiveFlags.pending;
+        if (flags.hasAny(ReactiveFlags.mutable)) {
+          final ReactiveLink? subSubs = sub.subs;
+          if (subSubs != null) {
+            _propagateEngineStaleWithoutNotify(subSubs);
+          }
+        }
+      }
+      current = current.nextSub;
+    }
+  }
+
   /// Enqueues this registry for notification via the two-phase batch flush,
   /// whether or not an explicit `Observable.batch()` is already active.
   ///

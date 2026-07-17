@@ -113,6 +113,9 @@ class ObservableFuture<T> extends Observable<AsyncState<T>> {
   /// seguro chamar após [close] — o estado resultante simplesmente nunca é
   /// escrito, já que escritas em um [Observable] fechado já são um no-op.
   Future<void> run() async {
+    if (isClosed) {
+      return;
+    }
     final int generation = ++_generation;
     value = AsyncLoading<T>(previousData: _previousDataFromCurrent());
     try {

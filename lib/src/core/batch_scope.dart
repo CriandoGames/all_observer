@@ -129,6 +129,9 @@ abstract final class BatchScope {
       action();
     } catch (_) {
       if (_depth == 1) {
+        for (final ListenerRegistry registry in _pending) {
+          registry.markEngineStaleWithoutNotifyingListeners();
+        }
         _pending.clear();
         _dirtyFlushCallbacks.clear();
       }

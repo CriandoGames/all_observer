@@ -245,7 +245,7 @@ class CoreObservable<T> {
     if (context == null) {
       return;
     }
-    context.onTrackedWrite?.call();
+    context.onTrackedWrite?.call(registry);
     final String message = '$label alterado DURANTE o build de um Observer.';
     if (ObserverConfig.strictMode) {
       throw ObserverError(message);

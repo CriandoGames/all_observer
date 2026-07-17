@@ -25,6 +25,7 @@ class TrackingContext {
     this.ownerLabel,
     this.subscribes = true,
     this.onTrackedWrite,
+    this.onDependencyChangedFrom,
   });
 
   /// Invoked when any observable read during this context later changes.
@@ -32,6 +33,15 @@ class TrackingContext {
   /// Invocado quando qualquer observável lido durante este contexto mudar
   /// posteriormente.
   final ObserverVoidCallback onDependencyChanged;
+
+  /// Optional dependency-aware variant of [onDependencyChanged]. Effects use
+  /// this to distinguish direct self-invalidations from unrelated
+  /// invalidations that happen during the same flush.
+  ///
+  /// Variante opcional de [onDependencyChanged] que informa a dependÃªncia.
+  /// Effects usam isso para diferenciar auto-invalidaÃ§Ãµes diretas de
+  /// invalidaÃ§Ãµes nÃ£o relacionadas no mesmo flush.
+  final void Function(ListenerRegistry registry)? onDependencyChangedFrom;
 
   /// Whether reads inside this context subscribe [onDependencyChanged] to
   /// each read registry (the classic Observer/effect behavior). A
@@ -56,7 +66,7 @@ class TrackingContext {
   /// Gancho opcional chamado quando um código escreve em um [CoreObservable]
   /// enquanto este contexto está ativo. Effects usam isso para reconhecer
   /// auto-invalidações causadas pelo próprio corpo durante um flush de batch.
-  final void Function()? onTrackedWrite;
+  final void Function(ListenerRegistry registry)? onTrackedWrite;
 
   /// Debug label of the Observer/Computed/Effect that owns this context, if
   /// known. Only used to populate `ObserverInspector.onTrack` events — has
@@ -243,7 +253,11 @@ abstract final class DependencyTracker {
       return;
     }
     if (context.subscribes) {
-      final Disposer disposer = registry.add(context.onDependencyChanged);
+      final ObserverVoidCallback listener =
+          context.onDependencyChangedFrom == null
+          ? context.onDependencyChanged
+          : () => context.onDependencyChangedFrom!(registry);
+      final Disposer disposer = registry.add(listener);
       context.disposers.add(disposer);
     }
     if (label != null) {

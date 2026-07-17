@@ -2,9 +2,11 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 
 import '../core/batch_scope.dart';
 import '../core/dependency_tracker.dart';
+import '../core/listener_registry.dart';
 import '../core/observer_inspector.dart';
 import '../core/reactive_scope.dart';
 import '../core/typedefs.dart';
+import '../engine/reactive_engine.dart';
 import '../errors/observer_error.dart';
 import '../logging/observer_config.dart';
 import '../logging/observer_logger.dart';
@@ -81,7 +83,12 @@ Disposer effect(void Function() run, {String? name}) {
 
 class _Effect {
   _Effect(this._run, {String? name}) : _name = name {
-    _execute();
+    try {
+      _execute();
+    } catch (_) {
+      dispose();
+      rethrow;
+    }
   }
 
   final void Function() _run;
@@ -91,6 +98,7 @@ class _Effect {
   bool _dirty = false;
   bool _warnedEmptyOnce = false;
   int? _ignoreInvalidationsFromFlushEpoch;
+  final Set<ListenerRegistry> _writtenDuringTrackedRun = <ListenerRegistry>{};
 
   String get _label => 'Effect(${_name ?? '#$hashCode'})';
 
@@ -103,6 +111,7 @@ class _Effect {
       _onDependencyChanged,
       ownerLabel: _label,
       onTrackedWrite: _markTrackedWrite,
+      onDependencyChangedFrom: _onDependencyChangedFrom,
     );
     try {
       DependencyTracker.track(context, _run);
@@ -138,6 +147,7 @@ class _Effect {
       }
       if (!BatchScope.isActive) {
         _ignoreInvalidationsFromFlushEpoch = null;
+        _writtenDuringTrackedRun.clear();
       }
     }
     dispatchToInspectors(
@@ -177,13 +187,21 @@ class _Effect {
   // de agendamento, apenas um dependente sem valor em cache e sem filtro de
   // mudança.
   void _onDependencyChanged() {
+    _onDependencyChangedFrom(null);
+  }
+
+  void _onDependencyChangedFrom(ListenerRegistry? dependency) {
     if (_isDisposed) {
       return;
     }
     final int? ignoredFlushEpoch = _ignoreInvalidationsFromFlushEpoch;
     if (ignoredFlushEpoch != null) {
       if (BatchScope.isActive && ignoredFlushEpoch == BatchScope.flushEpoch) {
-        return;
+        if (dependency == null || _isSelfInvalidation(dependency)) {
+          return;
+        }
+      } else {
+        _writtenDuringTrackedRun.clear();
       }
       _ignoreInvalidationsFromFlushEpoch = null;
     }
@@ -205,10 +223,48 @@ class _Effect {
     _execute();
   }
 
-  void _markTrackedWrite() {
+  void _markTrackedWrite(ListenerRegistry registry) {
+    _writtenDuringTrackedRun.add(registry);
     _ignoreInvalidationsFromFlushEpoch = BatchScope.isActive
         ? BatchScope.flushEpoch
         : BatchScope.flushEpoch + 1;
+  }
+
+  bool _isSelfInvalidation(ListenerRegistry dependency) {
+    for (final ListenerRegistry written in _writtenDuringTrackedRun) {
+      if (identical(written, dependency)) {
+        return true;
+      }
+      final ReactiveNode? writtenNode = written.engineNode;
+      final ReactiveNode? dependencyNode = dependency.engineNode;
+      if (writtenNode != null &&
+          dependencyNode != null &&
+          _dependsOn(dependencyNode, writtenNode)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _dependsOn(ReactiveNode start, ReactiveNode target) {
+    final Set<ReactiveNode> visited = <ReactiveNode>{};
+    final List<ReactiveNode> stack = <ReactiveNode>[start];
+    while (stack.isNotEmpty) {
+      final ReactiveNode node = stack.removeLast();
+      if (!visited.add(node)) {
+        continue;
+      }
+      ReactiveLink? link = node.deps;
+      while (link != null) {
+        final ReactiveNode dep = link.dep;
+        if (identical(dep, target)) {
+          return true;
+        }
+        stack.add(dep);
+        link = link.nextDep;
+      }
+    }
+    return false;
   }
 
   void _clearDependencies() {
@@ -230,6 +286,7 @@ class _Effect {
     _clearDependencies();
     _dirty = false;
     _ignoreInvalidationsFromFlushEpoch = null;
+    _writtenDuringTrackedRun.clear();
     _isDisposed = true;
   }
 }
