@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/batch_scope.dart';
 import '../core/core_observable.dart';
+import '../protocol/observer_protocol_event.dart';
 import '../core/dependency_tracker.dart';
 import '../logging/observer_config.dart';
 import '../logging/observer_logger.dart';
@@ -130,6 +131,11 @@ class Observable<T> implements ValueListenable<T> {
   /// aqui só adiciona a linha de console, nunca uma segunda notificação de
   /// inspector).
   final CoreObservable<T> _core;
+
+  /// Stable identity used by Observer Protocol events and snapshots.
+  ///
+  /// Identidade estável usada nos eventos e snapshots do Observer Protocol.
+  ObserverNodeId get objectId => _core.objectId;
 
   String get _label => _core.label;
 

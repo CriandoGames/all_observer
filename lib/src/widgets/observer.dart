@@ -6,6 +6,8 @@ import '../core/typedefs.dart';
 import '../errors/observer_error.dart';
 import '../logging/observer_config.dart';
 import '../logging/observer_logger.dart';
+import '../protocol/observer_protocol.dart';
+import '../protocol/observer_protocol_event.dart';
 import 'rebuild_scheduler.dart';
 
 /// Rebuilds automatically whenever any observable read inside the
@@ -35,6 +37,12 @@ import 'rebuild_scheduler.dart';
 /// final count = 0.obs;
 /// Observer(() => Text('${count.value}'));
 /// ```
+///
+/// With Observer Protocol enabled, each mounted state has one stable tracker
+/// ID and every build emits paired start/finish plus dependency deltas.
+///
+/// Com o Observer Protocol ativo, cada State montado tem um ID estável e todo
+/// build emite início/fim pareados mais deltas de dependências.
 class Observer extends StatefulWidget {
   /// Creates an [Observer] running [builder] on every rebuild. An optional
   /// [name] is used in debug logs and warnings.
@@ -117,8 +125,25 @@ class Observer extends StatefulWidget {
 
 class _ObserverState extends State<Observer> {
   List<Disposer> _disposers = <Disposer>[];
+  final ObserverNodeId _objectId = ObserverProtocol.allocateNodeId();
+  late final ObserverProtocolTracker _protocolTracker;
 
   String get _label => 'Observer(${widget.name ?? 'sem-nome'})';
+
+  @override
+  void initState() {
+    super.initState();
+    _protocolTracker = ObserverProtocol.tracker(
+      trackerId: _objectId,
+      kind: ObserverNodeKind.observer,
+    );
+    ObserverProtocol.nodeCreated(
+      objectId: _objectId,
+      kind: ObserverNodeKind.observer,
+      debugLabel: _label,
+      debugType: widget.runtimeType.toString(),
+    );
+  }
 
   void _clearDependencies() {
     for (final Disposer dispose in _disposers) {
@@ -143,6 +168,11 @@ class _ObserverState extends State<Observer> {
   @override
   void dispose() {
     _clearDependencies();
+    ObserverProtocol.disposeTracker(_protocolTracker);
+    ObserverProtocol.nodeDisposed(
+      objectId: _objectId,
+      kind: ObserverNodeKind.observer,
+    );
     super.dispose();
   }
 
@@ -152,6 +182,7 @@ class _ObserverState extends State<Observer> {
     final TrackingContext trackingContext = TrackingContext(
       _onDependencyChanged,
       ownerLabel: _label,
+      protocolTracker: _protocolTracker,
     );
     try {
       final Widget Function() runBuilder = widget._childBuilder != null

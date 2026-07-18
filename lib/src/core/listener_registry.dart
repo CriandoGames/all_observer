@@ -2,6 +2,7 @@ import 'dart:collection' show LinkedHashSet;
 
 import '../engine/reactive_engine.dart';
 import '../errors/observer_cycle_error.dart';
+import '../protocol/observer_protocol_event.dart';
 import 'batch_scope.dart';
 import 'core_error_reporting.dart';
 import 'engine_bridge.dart';
@@ -73,6 +74,10 @@ class ListenerRegistry {
   /// computed liguem ao nó do próprio computed. `null` até lá — registries
   /// nunca lidos dentro de um computed pagam custo zero de motor.
   ReactiveNode? engineNode;
+
+  /// Stable protocol identity of the node owning this registry, when the
+  /// registry belongs to an instrumented reactive node.
+  ObserverNodeId? protocolNodeId;
 
   /// Number of listeners currently attached.
   ///

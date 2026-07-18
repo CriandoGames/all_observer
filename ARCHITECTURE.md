@@ -6,6 +6,37 @@ reduce bus factor: someone who has never touched this codebase should be
 able to read this file and understand *why* the code is shaped the way it
 is, not just *what* it does.
 
+## Observer Protocol layer
+
+The versioned observability layer lives under `lib/src/protocol/` and sits
+above the reactive mechanisms described below. It observes existing lifecycle
+and tracking boundaries; it never introduces a listener, notification, rebuild,
+or recomputation of its own.
+
+Its folders correspond to architectural responsibilities:
+
+- `model/`: stable node identity, node kind, and safe value summaries;
+- `events/`: the versioned envelope and focused lifecycle/tracker/scope/
+  warning event families;
+- `snapshot/`: immutable current-state transfer objects;
+- `internal/`: bounded buffer, metadata-only registry, value policy, session
+  state, and focused node/tracker/scope runtimes;
+- `observer_protocol.dart`: the small public facade;
+- `observer_protocol_inspector.dart`: the opt-in capability that extends the
+  existing `ObserverInspector` registration layer.
+
+Identity is a process-local monotonic counter, not a label or public hash.
+Session sequence is the ordering source of truth; wall-clock microseconds are
+diagnostic metadata only. Registry entries contain immutable metadata and safe
+summaries, never strong references to user values. `Expando<bool>` stores a
+tracker's disposal flag without retaining the tracker key.
+
+Compatibility follows an additive-capability decision: no method is added to
+`ObserverInspector`, so both `extends ObserverInspector` and `implements
+ObserverInspector` remain source-compatible. A protocol consumer extends
+`ObserverProtocolInspector` and is registered in the same
+`ObserverConfig.inspectors` list.
+
 ## How the graph works
 
 Three pieces cooperate:

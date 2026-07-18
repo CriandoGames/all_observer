@@ -1,4 +1,6 @@
 import '../core/reactive_scope.dart';
+import '../protocol/observer_protocol.dart';
+import '../protocol/observer_protocol_event.dart';
 import '../core/typedefs.dart';
 import '../observable/observable.dart';
 import '../observable/observable_subscription.dart';
@@ -23,12 +25,34 @@ import 'debouncer.dart';
 /// quatro factories de worker. Chamar você mesmo o [dispose] antes é
 /// inofensivo (ele é idempotente). Criado fora de qualquer escopo, o
 /// comportamento é o de antes: só quem chama é dono do descarte.
+///
+/// Observer Protocol gives each worker a stable lifecycle/resource ID without
+/// changing its subscription behavior.
+///
+/// O Observer Protocol atribui um ID estável de lifecycle/recurso a cada
+/// worker, sem alterar o comportamento da assinatura.
 class Worker {
-  Worker._(this._dispose) {
-    ReactiveScope.current?.add(dispose);
+  Worker._(this._dispose, [this._debugLabel = 'Worker']) {
+    ObserverProtocol.nodeCreated(
+      objectId: objectId,
+      kind: ObserverNodeKind.worker,
+      debugLabel: _debugLabel,
+      debugType: runtimeType.toString(),
+    );
+    ReactiveScope.current?.add(
+      dispose,
+      resourceId: objectId,
+      resourceKind: ObserverNodeKind.worker,
+    );
   }
 
   final void Function() _dispose;
+  final String _debugLabel;
+
+  /// Stable identity used by Observer Protocol lifecycle events.
+  ///
+  /// Identidade estável usada nos eventos de lifecycle do Observer Protocol.
+  final ObserverNodeId objectId = ObserverProtocol.allocateNodeId();
   bool _disposed = false;
 
   /// Whether [dispose] has already been called.
@@ -45,6 +69,10 @@ class Worker {
     }
     _disposed = true;
     _dispose();
+    ObserverProtocol.nodeDisposed(
+      objectId: objectId,
+      kind: ObserverNodeKind.worker,
+    );
   }
 }
 
@@ -79,7 +107,7 @@ class Workers {
 /// Executa [callback] com o novo valor toda vez que [observable] mudar.
 Worker ever<T>(Observable<T> observable, ObserverCallback<T> callback) {
   final ObservableSubscription sub = observable.listen(callback);
-  return Worker._(sub.cancel);
+  return Worker._(sub.cancel, 'Worker(ever)');
 }
 
 /// Runs [callback] once, the first time [observable] changes, then stops
@@ -93,7 +121,7 @@ Worker once<T>(Observable<T> observable, ObserverCallback<T> callback) {
     sub.cancel();
     callback(value);
   });
-  return Worker._(sub.cancel);
+  return Worker._(sub.cancel, 'Worker(once)');
 }
 
 /// Runs [callback] with the latest value after [observable] stops
@@ -113,7 +141,7 @@ Worker debounce<T>(
   return Worker._(() {
     debouncer.cancel();
     sub.cancel();
-  });
+  }, 'Worker(debounce)');
 }
 
 /// Runs [callback] with the latest value at most once per [time], while
@@ -172,5 +200,5 @@ Worker interval<T>(
   return Worker._(() {
     cooldown?.cancel();
     sub.cancel();
-  });
+  }, 'Worker(interval)');
 }

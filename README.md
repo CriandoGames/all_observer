@@ -366,6 +366,7 @@ how it *notifies*, so it composes with any of them.
 - [Async](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/async.md) — `ObservableFuture`, `ObservableStream`, `AsyncState`.
 - [Workers](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/workers.md) — `ever`, `once`, `debounce`, `interval`.
 - [Advanced](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/advanced.md) — `batch`, diamond dependencies, `equals`, `setValue`, `strictMode`, logging, design decisions, limitations.
+- [Observer Protocol](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/observer_protocol.md) — stable identity, versioned events, dependency deltas, snapshots, bounded buffering, and safe values.
 - [Testing](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/testing.md) — how to test widgets and controllers that use all_observer, with real examples from the example app.
 - [Comparison](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/comparison.md) — detailed comparison vs GetX, Riverpod, Bloc, MobX, signals.
 - [Migrating from GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/en/migration_from_getx.md).

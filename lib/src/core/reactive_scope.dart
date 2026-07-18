@@ -3,6 +3,8 @@ import 'observer_inspector.dart';
 import 'typedefs.dart';
 import '../errors/observer_error.dart';
 import '../logging/observer_config.dart';
+import '../protocol/observer_protocol.dart';
+import '../protocol/observer_protocol_event.dart';
 
 /// An ambient disposal scope: every `Computed`/`CoreComputed`, `effect()`
 /// and worker (`ever`, `once`, `debounce`, `interval`) created inside
@@ -77,6 +79,12 @@ import '../logging/observer_config.dart';
 /// captura a *criação* de recursos reativos; o batch só agrupa
 /// *notificações*. Criar recursos dentro de um batch dentro de um escopo
 /// (ou vice-versa) funciona sem regras especiais.
+///
+/// Observer Protocol assigns stable IDs to the scope and its resources. The
+/// debug registry stores metadata only; it does not add disposer retention.
+///
+/// O Observer Protocol atribui IDs estáveis ao escopo e seus recursos. O
+/// registry armazena apenas metadados, sem retenção adicional de disposers.
 class ReactiveScope {
   /// Creates a scope. An optional [name] is used in logs and inspector
   /// events; when omitted, a short hash-based label is used instead.
@@ -92,13 +100,34 @@ class ReactiveScope {
   /// dentro do [run] dele), este escopo registra seu próprio [dispose]
   /// naquele pai — ver a nota sobre aninhamento no doc da classe.
   ReactiveScope({this.name}) {
-    current?.add(dispose);
+    ObserverProtocol.nodeCreated(
+      objectId: objectId,
+      kind: ObserverNodeKind.scope,
+      debugLabel: label,
+      debugType: runtimeType.toString(),
+    );
+    ObserverProtocol.scopeCreated(scopeId: objectId, debugLabel: label);
+    current?.add(
+      dispose,
+      resourceId: objectId,
+      resourceKind: ObserverNodeKind.scope,
+    );
   }
 
   /// Optional debug label shown in logs and inspector events.
   ///
   /// Rótulo de debug opcional exibido em logs e eventos de inspector.
   final String? name;
+
+  /// Stable identity used by Observer Protocol scope events and snapshots.
+  ///
+  /// Identidade estável usada nos eventos e snapshots de escopo.
+  final ObserverNodeId objectId = ObserverProtocol.allocateNodeId();
+
+  /// Alias for [objectId] emphasizing this node's scope role.
+  ///
+  /// Alias de [objectId] que enfatiza o papel de escopo deste nó.
+  ObserverNodeId get scopeId => objectId;
 
   // Same stack-based ambient pattern as `DependencyTracker`: `run` pushes,
   // executes, pops in `finally`, so nested `run` calls restore the outer
@@ -179,7 +208,11 @@ class ReactiveScope {
   /// [ObserverError] é lançado se `ObserverConfig.strictMode` estiver
   /// habilitado — o mesmo padrão de mau uso de escrever em um observável
   /// fechado.
-  void add(Disposer disposer) {
+  void add(
+    Disposer disposer, {
+    ObserverNodeId? resourceId,
+    ObserverNodeKind resourceKind = ObserverNodeKind.subscription,
+  }) {
     if (_isDisposed) {
       // Dispose first, then (maybe) throw: even under strictMode the
       // resource must never leak.
@@ -202,6 +235,13 @@ class ReactiveScope {
       return;
     }
     _disposers.add(disposer);
+    if (ObserverProtocol.isEnabled) {
+      ObserverProtocol.scopeResourceRegistered(
+        scopeId: objectId,
+        resourceId: resourceId ?? ObserverProtocol.allocateNodeId(),
+        resourceKind: resourceKind,
+      );
+    }
   }
 
   /// Disposes everything registered in this scope, in reverse registration
@@ -240,10 +280,12 @@ class ReactiveScope {
     // já-descartado em [add], nunca mute a lista sendo iterada.
     final List<Disposer> disposers = List<Disposer>.of(_disposers);
     _disposers.clear();
+    var failedDisposeCount = 0;
     for (final Disposer disposer in disposers.reversed) {
       try {
         disposer();
       } catch (error, stackTrace) {
+        failedDisposeCount++;
         CoreErrorReporting.report(
           error,
           stackTrace,
@@ -254,6 +296,16 @@ class ReactiveScope {
         );
       }
     }
+    ObserverProtocol.scopeDisposed(
+      scopeId: objectId,
+      registeredResourceCount: disposers.length,
+      disposedResourceCount: disposers.length - failedDisposeCount,
+      failedDisposeCount: failedDisposeCount,
+    );
+    ObserverProtocol.nodeDisposed(
+      objectId: objectId,
+      kind: ObserverNodeKind.scope,
+    );
     dispatchToInspectors(
       ObserverConfig.inspectors,
       (ObserverInspector i) => i.onScopeDispose(
@@ -279,6 +331,12 @@ class ReactiveScope {
   // `ObserverConfig.inspectors` — registre um `ConsoleInspector` para
   // vê-los impressos.
   void _warn(String message, {String? suggestion}) {
+    ObserverProtocol.warningRaised(
+      warningCode: 'scope.warning',
+      message: message,
+      suggestion: suggestion,
+      objectId: objectId,
+    );
     dispatchToInspectors(
       ObserverConfig.inspectors,
       (ObserverInspector i) => i.onWarning(

@@ -190,6 +190,14 @@ class ScopeDisposeEvent extends ObservableEvent {
 /// Toda exceção lançada por um método de inspector é capturada e isolada
 /// por quem chama — mesmo princípio de um listener que lança — e nunca
 /// quebra a notificação que estava sendo reportada.
+///
+/// Observer Protocol consumers remain on this registration layer by
+/// extending `ObserverProtocolInspector`; no method is added to this legacy
+/// contract, preserving classes that use `implements ObserverInspector`.
+///
+/// Consumidores do Observer Protocol continuam nesta camada ao estender
+/// `ObserverProtocolInspector`; nenhum método é adicionado ao contrato legado,
+/// preservando classes que usam `implements ObserverInspector`.
 abstract class ObserverInspector {
   /// Creates an inspector with no retained state.
   ///

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/core_computed.dart';
 import '../logging/observer_logger.dart';
+import '../protocol/observer_protocol_event.dart';
 import 'observable_subscription.dart';
 
 /// A read-only [ValueListenable] whose value is derived from other
@@ -84,6 +85,11 @@ class Computed<T> implements ValueListenable<T> {
   /// O motor em Dart puro que esta classe envolve — ver o doc de classe de
   /// `CoreComputed`.
   final CoreComputed<T> _core;
+
+  /// Stable identity used by Observer Protocol events and snapshots.
+  ///
+  /// Identidade estável usada nos eventos e snapshots do Observer Protocol.
+  ObserverNodeId get objectId => _core.objectId;
 
   String get _label => _core.label;
 

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../core/core_error_reporting.dart';
 import '../core/dependency_tracker.dart';
 import '../core/observer_inspector.dart';
+import '../protocol/observer_protocol.dart';
 import '../errors/observer_error.dart';
 import 'console_inspector.dart';
 import 'observer_config.dart';
@@ -319,6 +320,11 @@ abstract final class ObserverLogger {
       stackTrace: _maybeStackTrace(),
     );
     if (dispatch) {
+      ObserverProtocol.warningRaised(
+        warningCode: 'observer.warning',
+        message: message,
+        suggestion: suggestion,
+      );
       _dispatch((ObserverInspector i) => i.onWarning(event));
     }
     _console.onWarning(event);

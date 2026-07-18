@@ -6,6 +6,8 @@ import 'untracked.dart';
 import '../errors/observer_error.dart';
 import '../logging/observer_config.dart';
 import '../observable/observable_subscription.dart';
+import '../protocol/observer_protocol.dart';
+import '../protocol/observer_protocol_event.dart';
 
 /// Pure-Dart reactive value holder: the same tracking/notification engine
 /// behind `Observable`, without any dependency on `package:flutter` — no
@@ -29,6 +31,12 @@ import '../observable/observable_subscription.dart';
 /// `package:flutter` — sem `ValueListenable`, sem logging de console
 /// controlado por `kDebugMode`. Utilizável em um contexto de CLI/servidor
 /// via `package:all_observer/core.dart`.
+///
+/// With Observer Protocol enabled, these same lifecycle points update the
+/// ID-based registry and emit safe events without adding reactive listeners.
+///
+/// Com o Observer Protocol ativo, os mesmos pontos de lifecycle atualizam o
+/// registry baseado em IDs e emitem eventos seguros, sem listeners adicionais.
 class CoreObservable<T> {
   /// Creates a [CoreObservable] holding [initialValue]. See `Observable`'s
   /// constructor for the meaning of [name] and [equals] — identical here.
@@ -42,6 +50,15 @@ class CoreObservable<T> {
   }) : _value = initialValue,
        _name = name,
        _equals = equals ?? _defaultEquals {
+    registry.protocolNodeId = objectId;
+    ObserverProtocol.nodeCreated(
+      objectId: objectId,
+      kind: ObserverNodeKind.observable,
+      debugLabel: label,
+      debugType: runtimeType.toString(),
+      initialValue: _value,
+      hasInitialValue: true,
+    );
     dispatchToInspectors(
       ObserverConfig.inspectors,
       (ObserverInspector i) => i.onCreate(
@@ -66,6 +83,11 @@ class CoreObservable<T> {
   /// principalmente para o wrapper Flutter `Observable` (ex.: para contar
   /// listeners no descarte).
   final ListenerRegistry registry = ListenerRegistry();
+
+  /// Stable identity used by Observer Protocol events and snapshots.
+  ///
+  /// Identidade estável usada nos eventos e snapshots do Observer Protocol.
+  final ObserverNodeId objectId = ObserverProtocol.allocateNodeId();
   final String? _name;
   final bool Function(T a, T b) _equals;
   T _value;
@@ -143,6 +165,12 @@ class CoreObservable<T> {
     final T oldValue = _value;
     _previousValue = oldValue;
     _value = newValue;
+    ObserverProtocol.nodeUpdated(
+      objectId: objectId,
+      kind: ObserverNodeKind.observable,
+      oldValue: oldValue,
+      newValue: newValue,
+    );
     dispatchToInspectors(
       ObserverConfig.inspectors,
       (ObserverInspector i) => i.onUpdate(
@@ -259,6 +287,12 @@ class CoreObservable<T> {
   }
 
   void _warn(String message, {String? suggestion}) {
+    ObserverProtocol.warningRaised(
+      warningCode: 'observable.warning',
+      message: message,
+      suggestion: suggestion,
+      objectId: objectId,
+    );
     dispatchToInspectors(
       ObserverConfig.inspectors,
       (ObserverInspector i) => i.onWarning(
@@ -296,6 +330,11 @@ class CoreObservable<T> {
     final int removed = registry.length;
     registry.clear();
     _isClosed = true;
+    ObserverProtocol.nodeDisposed(
+      objectId: objectId,
+      kind: ObserverNodeKind.observable,
+      listenerCount: removed,
+    );
     dispatchToInspectors(
       ObserverConfig.inspectors,
       (ObserverInspector i) => i.onDispose(

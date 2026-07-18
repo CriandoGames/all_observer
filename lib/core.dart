@@ -55,3 +55,5 @@ export 'src/errors/observer_cycle_error.dart';
 export 'src/errors/observer_error.dart';
 export 'src/logging/observer_config.dart';
 export 'src/observable/observable_subscription.dart';
+export 'src/protocol/observer_protocol.dart';
+export 'src/protocol/observer_protocol_event.dart';

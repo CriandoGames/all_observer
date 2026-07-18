@@ -10,6 +10,8 @@ import '../engine/reactive_engine.dart';
 import '../errors/observer_cycle_error.dart';
 import '../logging/observer_config.dart';
 import '../observable/observable_subscription.dart';
+import '../protocol/observer_protocol.dart';
+import '../protocol/observer_protocol_event.dart';
 
 /// Pure-Dart derived-value engine: the same lazy/memoized, glitch-free
 /// tracking behind `Computed`, without any dependency on `package:flutter`
@@ -51,6 +53,12 @@ import '../observable/observable_subscription.dart';
 /// `BatchScope` de sempre — preservando o timing observável de
 /// `addListener`/`listen`/`Observer`. Uma leitura entre a marcação e a
 /// estabilização se resolve preguiçosamente na hora (`checkDirty`).
+///
+/// Observer Protocol reuses the exact recomputation boundary to pair runs and
+/// publish dependency deltas; scheduling and equality semantics do not change.
+///
+/// O Observer Protocol reutiliza a fronteira exata de recomputação para parear
+/// execuções e publicar deltas; scheduler e igualdade não mudam.
 class CoreComputed<T> {
   /// Creates a [CoreComputed] that derives its value by running [compute].
   /// See `Computed`'s constructor for the meaning of [name] and [equals] —
@@ -75,7 +83,22 @@ class CoreComputed<T> {
       onEngineUnwatched: _onEngineUnwatched,
     );
     registry.engineNode = _node;
-    ReactiveScope.current?.add(close);
+    registry.protocolNodeId = objectId;
+    _protocolTracker = ObserverProtocol.tracker(
+      trackerId: objectId,
+      kind: ObserverNodeKind.computed,
+    );
+    ObserverProtocol.nodeCreated(
+      objectId: objectId,
+      kind: ObserverNodeKind.computed,
+      debugLabel: label,
+      debugType: runtimeType.toString(),
+    );
+    ReactiveScope.current?.add(
+      close,
+      resourceId: objectId,
+      resourceKind: ObserverNodeKind.computed,
+    );
   }
 
   static bool _defaultEquals<T>(T a, T b) => a == b;
@@ -93,6 +116,12 @@ class CoreComputed<T> {
   /// principalmente para o wrapper Flutter `Computed` (ex.: para contar
   /// listeners no descarte).
   final ListenerRegistry registry = ListenerRegistry();
+
+  /// Stable identity used by Observer Protocol events and snapshots.
+  ///
+  /// Identidade estável usada nos eventos e snapshots do Observer Protocol.
+  final ObserverNodeId objectId = ObserverProtocol.allocateNodeId();
+  late final ObserverProtocolTracker _protocolTracker;
 
   late final ComputedEngineNode _node;
   WatcherNode? _watcher;
@@ -206,11 +235,13 @@ class CoreComputed<T> {
       _noopInvalidate,
       ownerLabel: label,
       subscribes: false,
+      protocolTracker: _protocolTracker,
     );
     var completed = false;
     try {
       _value = DependencyTracker.track(context, _compute);
       _hasValue = true;
+      ObserverProtocol.initializeNodeValue(objectId, _value);
       completed = true;
     } finally {
       engine.activeSub = prevSub;
@@ -250,9 +281,11 @@ class CoreComputed<T> {
       _noopInvalidate,
       ownerLabel: label,
       subscribes: false,
+      protocolTracker: _protocolTracker,
     );
     bool changed = false;
     var completed = false;
+    final Object? oldValue = _hasValue ? _value : null;
     try {
       ++engine.cycle;
       final T newValue = DependencyTracker.track(context, _compute);
@@ -268,6 +301,12 @@ class CoreComputed<T> {
       purgeDeps(_node);
     }
     if (changed) {
+      ObserverProtocol.nodeUpdated(
+        objectId: objectId,
+        kind: ObserverNodeKind.computed,
+        oldValue: oldValue,
+        newValue: _value,
+      );
       registry.notifyOrQueue();
     }
     return changed;
@@ -395,6 +434,12 @@ class CoreComputed<T> {
     final int removed = registry.length;
     registry.clear();
     _isClosed = true;
+    ObserverProtocol.disposeTracker(_protocolTracker);
+    ObserverProtocol.nodeDisposed(
+      objectId: objectId,
+      kind: ObserverNodeKind.computed,
+      listenerCount: removed,
+    );
     dispatchToInspectors(
       ObserverConfig.inspectors,
       (ObserverInspector i) => i.onDispose(

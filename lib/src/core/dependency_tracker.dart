@@ -1,5 +1,7 @@
 import '../engine/reactive_engine.dart';
 import '../logging/observer_config.dart';
+import '../protocol/observer_protocol.dart';
+import '../protocol/observer_protocol_event.dart';
 import 'engine_bridge.dart';
 import 'listener_registry.dart';
 import 'observer_inspector.dart';
@@ -10,6 +12,12 @@ import 'typedefs.dart';
 ///
 /// Um quadro da pilha de rastreamento, criado enquanto um [Observer] (ou
 /// consumidor similar) executa seu builder.
+///
+/// A protocol-enabled context also collects stable dependency IDs. Existing
+/// listeners/disposers remain the source of truth for reactive behavior.
+///
+/// Um contexto com protocolo também coleta IDs estáveis. Os listeners e
+/// disposers existentes continuam sendo a fonte de verdade reativa.
 class TrackingContext {
   /// Creates a tracking context that reports dependency changes to
   /// [onDependencyChanged]. [ownerLabel], if given, identifies the
@@ -26,6 +34,7 @@ class TrackingContext {
     this.subscribes = true,
     this.onTrackedWrite,
     this.onDependencyChangedFrom,
+    this.protocolTracker,
   });
 
   /// Invoked when any observable read during this context later changes.
@@ -77,6 +86,19 @@ class TrackingContext {
   /// `ObserverInspector.onTrack` — não tem efeito no comportamento de
   /// rastreamento em si.
   final String? ownerLabel;
+
+  /// Optional Observer Protocol identity for this tracked owner.
+  ///
+  /// Identidade opcional do Observer Protocol para este dono rastreado.
+  final ObserverProtocolTracker? protocolTracker;
+
+  /// Stable dependency IDs read during this run. It is allocated only while
+  /// the protocol is enabled.
+  ///
+  /// IDs estáveis lidos nesta execução. Alocado apenas com protocolo ativo.
+  final Set<ObserverNodeId>? protocolDependencyIds = ObserverProtocol.isEnabled
+      ? <ObserverNodeId>{}
+      : null;
 
   /// Disposers accumulated for every distinct observable read while this
   /// context was active. Executed on unmount / next build.
@@ -194,11 +216,26 @@ abstract final class DependencyTracker {
   /// rastreamento de nível superior.
   static R track<R>(TrackingContext context, R Function() action) {
     final bool isTopLevel = _stack.isEmpty;
+    final ObserverProtocolRun? protocolRun = context.protocolTracker == null
+        ? null
+        : ObserverProtocol.beginTrackerRun(context.protocolTracker!);
+    var completedWithError = false;
     _stack.add(context);
     try {
       return action();
+    } catch (_) {
+      completedWithError = true;
+      rethrow;
     } finally {
       _stack.removeLast();
+      if (protocolRun != null) {
+        ObserverProtocol.finishTrackerRun(
+          protocolRun,
+          dependencyIds:
+              context.protocolDependencyIds ?? const <ObserverNodeId>{},
+          completedWithError: completedWithError,
+        );
+      }
       if (isTopLevel) {
         assert(
           _stack.isEmpty,
@@ -249,6 +286,10 @@ abstract final class DependencyTracker {
       return;
     }
     context.readCount++;
+    final ObserverNodeId? protocolNodeId = registry.protocolNodeId;
+    if (protocolNodeId != null) {
+      context.protocolDependencyIds?.add(protocolNodeId);
+    }
     if (context._hasSeen(registry)) {
       return;
     }

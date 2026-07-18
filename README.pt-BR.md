@@ -369,6 +369,7 @@ deles.
 - [Assíncrono](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/async.md) — `ObservableFuture`, `ObservableStream`, `AsyncState`.
 - [Workers](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/workers.md) — `ever`, `once`, `debounce`, `interval`.
 - [Avançado](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/advanced.md) — `batch`, dependências em diamante, `equals`, `setValue`, `strictMode`, logging, decisões de design, limitações.
+- [Observer Protocol](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/observer_protocol.md) — identidade estável, eventos versionados, deltas de dependências, snapshots, buffer limitado e valores seguros.
 - [Testes](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/testing.md) — como testar widgets e controllers que usam all_observer, com exemplos reais do app de exemplo.
 - [Comparação](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/comparison.md) — comparação detalhada com GetX, Riverpod, Bloc, MobX, signals.
 - [Migrando do GetX](https://github.com/CriandoGames/all_observer/blob/main/documentation/pt-BR/migration_from_getx.md).

@@ -50,6 +50,8 @@ export 'src/observable/observable_store_extensions.dart';
 export 'src/observable/observable_subscription.dart';
 export 'src/observable/observable_types.dart';
 export 'src/observable/select.dart';
+export 'src/protocol/observer_protocol.dart';
+export 'src/protocol/observer_protocol_event.dart';
 export 'src/widgets/observer.dart';
 export 'src/widgets/observer_state_mixin.dart';
 export 'src/widgets/observer_value.dart';

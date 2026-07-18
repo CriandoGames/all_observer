@@ -10,6 +10,8 @@ import '../engine/reactive_engine.dart';
 import '../errors/observer_error.dart';
 import '../logging/observer_config.dart';
 import '../logging/observer_logger.dart';
+import '../protocol/observer_protocol.dart';
+import '../protocol/observer_protocol_event.dart';
 
 /// Runs [run] immediately, then re-runs it whenever any observable read
 /// during its previous run changes value — a standalone reactive effect,
@@ -75,14 +77,34 @@ import '../logging/observer_logger.dart';
 /// cancela este effect — chamar você mesmo o [Disposer] retornado antes é
 /// inofensivo (ele é idempotente). Criado fora de qualquer escopo, o
 /// comportamento é o de antes: só quem chama é dono do descarte.
+///
+/// Observer Protocol instruments the existing tracked execution boundary; it
+/// does not schedule an extra run or swallow the original callback exception.
+///
+/// O Observer Protocol instrumenta a fronteira rastreada existente; não agenda
+/// execução adicional nem engole a exceção original do callback.
 Disposer effect(void Function() run, {String? name}) {
   final _Effect instance = _Effect(run, name: name);
-  ReactiveScope.current?.add(instance.dispose);
+  ReactiveScope.current?.add(
+    instance.dispose,
+    resourceId: instance._objectId,
+    resourceKind: ObserverNodeKind.effect,
+  );
   return instance.dispose;
 }
 
 class _Effect {
   _Effect(this._run, {String? name}) : _name = name {
+    _protocolTracker = ObserverProtocol.tracker(
+      trackerId: _objectId,
+      kind: ObserverNodeKind.effect,
+    );
+    ObserverProtocol.nodeCreated(
+      objectId: _objectId,
+      kind: ObserverNodeKind.effect,
+      debugLabel: _label,
+      debugType: runtimeType.toString(),
+    );
     try {
       _execute();
     } catch (_) {
@@ -93,6 +115,8 @@ class _Effect {
 
   final void Function() _run;
   final String? _name;
+  final ObserverNodeId _objectId = ObserverProtocol.allocateNodeId();
+  late final ObserverProtocolTracker _protocolTracker;
   List<Disposer> _dependencyDisposers = <Disposer>[];
   bool _isDisposed = false;
   bool _dirty = false;
@@ -112,6 +136,7 @@ class _Effect {
       ownerLabel: _label,
       onTrackedWrite: _markTrackedWrite,
       onDependencyChangedFrom: _onDependencyChangedFrom,
+      protocolTracker: _protocolTracker,
     );
     try {
       DependencyTracker.track(context, _run);
@@ -300,5 +325,10 @@ class _Effect {
     _ignoreInvalidationsFromFlushEpoch = null;
     _writtenDuringTrackedRun.clear();
     _isDisposed = true;
+    ObserverProtocol.disposeTracker(_protocolTracker);
+    ObserverProtocol.nodeDisposed(
+      objectId: _objectId,
+      kind: ObserverNodeKind.effect,
+    );
   }
 }

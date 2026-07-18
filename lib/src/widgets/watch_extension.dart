@@ -8,6 +8,8 @@ import '../core/typedefs.dart';
 import '../errors/observer_error.dart';
 import '../logging/observer_config.dart';
 import '../logging/observer_logger.dart';
+import '../protocol/observer_protocol.dart';
+import '../protocol/observer_protocol_event.dart';
 import '../observable/computed.dart';
 import '../observable/observable.dart';
 import 'rebuild_scheduler.dart';
@@ -70,19 +72,40 @@ final Expando<_ElementWatcher> _watchers = Expando<_ElementWatcher>(
 /// frame porque não exige contabilidade por frame, funciona igual dentro do
 /// `flutter_test` (que processa microtasks entre frames) e nunca falha para
 /// builds que aconteçam fora de um frame guiado por vsync.
+///
+/// Observer Protocol reuses one tracker ID across builds. The existing lazy
+/// unmount cleanup also bounds protocol lifecycle removal.
+///
+/// O Observer Protocol reutiliza um ID entre builds. A limpeza lazy existente
+/// no unmount também delimita a remoção do lifecycle no protocolo.
 class _ElementWatcher {
-  _ElementWatcher(this._element);
+  _ElementWatcher(this._element) {
+    _protocolTracker = ObserverProtocol.tracker(
+      trackerId: _objectId,
+      kind: ObserverNodeKind.watch,
+    );
+    ObserverProtocol.nodeCreated(
+      objectId: _objectId,
+      kind: ObserverNodeKind.watch,
+      debugLabel: _label,
+      debugType: runtimeType.toString(),
+    );
+  }
 
   final Element _element;
+  final ObserverNodeId _objectId = ObserverProtocol.allocateNodeId();
+  late final ObserverProtocolTracker _protocolTracker;
   TrackingContext? _context;
+  ObserverProtocolRun? _protocolRun;
   bool _newBuild = true;
+  bool _protocolCompletedWithError = false;
+  bool _protocolDisposed = false;
 
   String get _label => 'Watch(${_element.widget.runtimeType})';
 
   T read<T>(ValueListenable<T> source) {
     if (_newBuild) {
       _newBuild = false;
-      scheduleMicrotask(() => _newBuild = true);
       _disposeSubscriptions();
       // Reusing TrackingContext (rather than subscribing by hand) buys the
       // exact Observer semantics for free: per-registry deduplication, and
@@ -94,8 +117,19 @@ class _ElementWatcher {
       // os mesmos eventos `ObserverInspector.onTrack`, rotulados com este
       // watcher em vez de um Observer.
       _context = TrackingContext(_onDependencyChanged, ownerLabel: _label);
+      _protocolCompletedWithError = false;
+      _protocolRun = ObserverProtocol.beginTrackerRun(_protocolTracker);
+      scheduleMicrotask(() {
+        _finishProtocolRun();
+        _newBuild = true;
+      });
     }
-    return DependencyTracker.track(_context!, () => source.value);
+    try {
+      return DependencyTracker.track(_context!, () => source.value);
+    } catch (_) {
+      _protocolCompletedWithError = true;
+      rethrow;
+    }
   }
 
   void _onDependencyChanged() {
@@ -109,6 +143,15 @@ class _ElementWatcher {
     // registro.
     if (!_element.mounted) {
       _disposeSubscriptions();
+      _finishProtocolRun();
+      if (!_protocolDisposed) {
+        _protocolDisposed = true;
+        ObserverProtocol.disposeTracker(_protocolTracker);
+        ObserverProtocol.nodeDisposed(
+          objectId: _objectId,
+          kind: ObserverNodeKind.watch,
+        );
+      }
       _watchers[_element] = null;
       return;
     }
@@ -128,6 +171,20 @@ class _ElementWatcher {
       dispose();
     }
     context.disposers.clear();
+  }
+
+  void _finishProtocolRun() {
+    final ObserverProtocolRun? run = _protocolRun;
+    _protocolRun = null;
+    if (run == null) {
+      return;
+    }
+    ObserverProtocol.finishTrackerRun(
+      run,
+      dependencyIds:
+          _context?.protocolDependencyIds ?? const <ObserverNodeId>{},
+      completedWithError: _protocolCompletedWithError,
+    );
   }
 }
 

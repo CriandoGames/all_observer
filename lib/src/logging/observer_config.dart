@@ -108,6 +108,14 @@ abstract final class ObserverConfig {
   /// Uma exceção lançada por um inspector é capturada e isolada — nunca
   /// impede que os demais inspectors (ou o logging fixo no console) rodem,
   /// e nunca quebra a notificação que estava sendo reportada.
+  ///
+  /// This is also the single Observer Protocol registration layer. A subtype
+  /// of `ObserverProtocolInspector` receives protocol events in addition to
+  /// whichever legacy callbacks it overrides.
+  ///
+  /// Esta também é a única camada de registro do Observer Protocol. Um
+  /// subtipo de `ObserverProtocolInspector` recebe eventos do protocolo além
+  /// dos callbacks legados que sobrescrever.
   static List<ObserverInspector> inspectors = <ObserverInspector>[];
 
   /// Whether events dispatched to [inspectors] carry a captured
