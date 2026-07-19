@@ -53,6 +53,79 @@ void main() {
     expect(summaries.last?.display, isNull);
   });
 
+  test('credential and personal-data shapes are redacted without prefixes', () {
+    ObserverProtocol.configure(
+      const ObserverProtocolConfig(enabled: true, captureValues: true),
+    );
+    const List<String> sensitive = <String>[
+      'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.synthetic-signature',
+      'sk_test_1234567890abcdefghijklmnopqrstuvwxyz',
+      'person@example.test',
+      '529.982.247-25',
+      '0123456789abcdef0123456789abcdef01234567',
+      'Authorization: SyntheticCredential',
+      'password=synthetic-password',
+    ];
+
+    for (final String value in sensitive) {
+      Observable<String>(value);
+    }
+
+    expect(
+      ObserverProtocol.snapshot().nodes.map((node) => node.valueSummary),
+      everyElement(
+        isA<ObserverValueSummary>()
+            .having((summary) => summary.isRedacted, 'isRedacted', isTrue)
+            .having((summary) => summary.display, 'display', isNull),
+      ),
+    );
+  });
+
+  test('string truncation preserves Unicode scalar boundaries', () {
+    ObserverProtocol.configure(
+      const ObserverProtocolConfig(
+        enabled: true,
+        captureValues: true,
+        maxStringLength: 1,
+      ),
+    );
+    Observable<String>('😀extended');
+
+    final ObserverValueSummary summary =
+        ObserverProtocol.snapshot().nodes.single.valueSummary!;
+    expect(summary.display, '😀');
+    expect(summary.display!.runes, hasLength(1));
+    expect(summary.isTruncated, isTrue);
+  });
+
+  test('a throwing application redactor fails closed', () {
+    ObserverProtocol.configure(
+      ObserverProtocolConfig(
+        enabled: true,
+        captureValues: true,
+        redactValue: (_) => throw StateError('synthetic callback failure'),
+      ),
+    );
+
+    expect(() => Observable<String>('ordinary value'), returnsNormally);
+    final ObserverValueSummary summary =
+        ObserverProtocol.snapshot().nodes.single.valueSummary!;
+    expect(summary.isRedacted, isTrue);
+    expect(summary.display, isNull);
+  });
+
+  test('productionSafe disables payloads, stacks and user labels', () {
+    ObserverProtocol.configure(
+      const ObserverProtocolConfig.productionSafe(enabled: true),
+    );
+    Observable<String>('ordinary value', name: 'person@example.test');
+
+    final ObserverNodeSnapshot node = ObserverProtocol.snapshot().nodes.single;
+    expect(node.debugLabel, '[redacted]');
+    expect(node.valueSummary?.display, isNull);
+    expect(ObserverProtocol.events.single.stackTrace, isNull);
+  });
+
   test('application can explicitly redact a value', () {
     ObserverProtocol.configure(
       ObserverProtocolConfig(

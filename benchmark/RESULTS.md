@@ -2,15 +2,33 @@
 
 `performance_guard_test.dart` now runs deterministic, broad relative guards
 in CI for scalar `Observable` overhead and `ObservableList.addAll`. These are
-debug-mode catastrophe guards, not release-performance targets. The manual
-timing benchmarks described below have not been recorded on a reference
-machine yet.
+debug-mode catastrophe guards, not release-performance targets.
 
-**Not executed in this environment.** These benchmarks were written and
-manually reviewed for correctness (imports, API usage, control flow) but
-could not actually be run here — there is no `flutter`/`dart` binary
-available in this audit environment. Before relying on any performance
-claim, run each file locally with:
+The Observer Protocol matrix was executed on 2026-07-18 with Flutter 3.44.6
+and Dart 3.12.2 on Windows x64. Absolute timings remain machine-specific;
+the checked-in guard uses broad median ratios to avoid machine-sensitive CI
+failures. Heap allocations could not be measured reliably with the available
+Stopwatch harness and remain a residual measurement gap.
+
+## Observer Protocol v1 matrix
+
+| Scenario | µs/op |
+| --- | ---: |
+| disabled | 0.0348 |
+| enabled, no consumer | 0.4097 |
+| one empty consumer | 1.1139 |
+| five empty consumers | 3.7738 |
+| registry + buffer 0 | 0.4046 |
+| registry disabled + buffer 0 | 0.3759 |
+| registry + buffer 1 | 0.4084 |
+| registry + buffer 1,000 | 0.4151 |
+| registry + buffer 100,000 | 0.5405 |
+| capture values | 0.4376 |
+| capture stack | 1.2729 |
+| node create/dispose churn | 1.7702 |
+
+A 1,000-dependency replacement measured 703.168 µs/run; a snapshot of 1,000
+nodes measured 69.632 µs/snapshot. Run the individual Flutter benchmarks with:
 
 ```
 flutter test benchmark/observable_vs_value_notifier_benchmark.dart

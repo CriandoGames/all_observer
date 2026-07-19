@@ -1,6 +1,63 @@
 import '../model/observer_node.dart';
 import '../model/observer_value_summary.dart';
 
+/// Whether a session snapshot can represent every instrumented live object.
+enum ObserverProtocolBaselineStatus {
+  /// Instrumentation began before any potentially live node was allocated.
+  complete,
+
+  /// Instrumentation was enabled after one or more nodes were allocated.
+  activatedAfterObjectsWereAllocated,
+
+  /// A session restart cleared a registry that contained active objects.
+  restartedWithActiveObjects,
+
+  /// Reconfiguration cleared a registry that contained active objects.
+  reconfiguredWithActiveObjects,
+}
+
+/// Known coverage level of Observer Protocol v1.
+enum ObserverProtocolInstrumentationCoverage {
+  /// All supported reactive resource families are represented.
+  complete,
+
+  /// One or more resource families are intentionally not represented.
+  partial,
+}
+
+/// Features intentionally outside the v1 graph.
+enum ObserverProtocolCoverageLimitation {
+  /// ObservableList, ObservableMap and ObservableSet use legacy inspection.
+  reactiveCollections,
+}
+
+/// Sanitized categories used to account for isolated protocol failures.
+enum ObserverProtocolInternalErrorCategory {
+  /// Node creation event dispatch.
+  creation,
+
+  /// Node update event dispatch.
+  update,
+
+  /// Dependency-delta event dispatch.
+  dependencyDelta,
+
+  /// Structured warning event dispatch.
+  warning,
+
+  /// Node disposal event dispatch.
+  dispose,
+
+  /// Scope lifecycle event dispatch.
+  scope,
+
+  /// Tracker-finished event dispatch.
+  trackerFinished,
+
+  /// Any internal category not represented above.
+  other,
+}
+
 /// Immutable active-node entry in a protocol snapshot.
 /// Entrada imutável de nó ativo em um snapshot.
 final class ObserverNodeSnapshot {
@@ -130,11 +187,31 @@ final class ObserverProtocolSnapshot {
     required this.droppedEventCount,
     required this.firstAvailableSequence,
     required this.lastAvailableSequence,
+    this.baselineStatus = ObserverProtocolBaselineStatus.complete,
+    this.instrumentationCoverage =
+        ObserverProtocolInstrumentationCoverage.partial,
+    Set<ObserverProtocolCoverageLimitation> coverageLimitations =
+        const <ObserverProtocolCoverageLimitation>{
+          ObserverProtocolCoverageLimitation.reactiveCollections,
+        },
+    this.protocolInternalErrorCount = 0,
+    Map<ObserverProtocolInternalErrorCategory, int>
+        protocolInternalErrorCounts =
+        const <ObserverProtocolInternalErrorCategory, int>{},
+    this.lastProtocolInternalErrorCode,
   }) : nodes = List<ObserverNodeSnapshot>.unmodifiable(nodes),
        dependencies = List<ObserverDependencySnapshot>.unmodifiable(
          dependencies,
        ),
-       scopes = List<ObserverScopeSnapshot>.unmodifiable(scopes);
+       scopes = List<ObserverScopeSnapshot>.unmodifiable(scopes),
+       coverageLimitations =
+           Set<ObserverProtocolCoverageLimitation>.unmodifiable(
+             coverageLimitations,
+           ),
+       protocolInternalErrorCounts =
+           Map<ObserverProtocolInternalErrorCategory, int>.unmodifiable(
+             protocolInternalErrorCounts,
+           );
 
   /// Protocol schema version.
   /// Versão do schema do protocolo.
@@ -175,4 +252,27 @@ final class ObserverProtocolSnapshot {
   /// Newest sequence retained by the buffer, or `null` when empty.
   /// Sequência retida mais recente, ou `null` quando vazio.
   final int? lastAvailableSequence;
+
+  /// Explains whether objects may predate this session's registry baseline.
+  final ObserverProtocolBaselineStatus baselineStatus;
+
+  /// True only when updates and disposals can be reconciled from this snapshot.
+  bool get isBaselineComplete =>
+      baselineStatus == ObserverProtocolBaselineStatus.complete;
+
+  /// Coverage of the protocol graph, independently from session completeness.
+  final ObserverProtocolInstrumentationCoverage instrumentationCoverage;
+
+  /// Explicit reasons why [instrumentationCoverage] is partial.
+  final Set<ObserverProtocolCoverageLimitation> coverageLimitations;
+
+  /// Total isolated internal failures in this session.
+  final int protocolInternalErrorCount;
+
+  /// Isolated internal failures grouped by sanitized category.
+  final Map<ObserverProtocolInternalErrorCategory, int>
+  protocolInternalErrorCounts;
+
+  /// Last fixed error code. Never contains an exception message.
+  final String? lastProtocolInternalErrorCode;
 }

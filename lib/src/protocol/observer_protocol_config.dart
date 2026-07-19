@@ -13,7 +13,21 @@ final class ObserverProtocolConfig {
     this.registryEnabled = true,
     this.maxStringLength = 120,
     this.redactValue,
+    this.redactLabels = false,
   }) : assert(eventBufferSize >= 0),
+       assert(maxStringLength >= 0);
+
+  /// Conservative preset for diagnostics that may be enabled in production.
+  const ObserverProtocolConfig.productionSafe({
+    this.enabled = true,
+    this.eventBufferSize = 1000,
+    this.registryEnabled = true,
+    this.maxStringLength = 120,
+    this.redactValue,
+  }) : captureValues = false,
+       captureStackTraces = false,
+       redactLabels = true,
+       assert(eventBufferSize >= 0),
        assert(maxStringLength >= 0);
 
   /// Whether protocol instrumentation is active.
@@ -52,4 +66,7 @@ final class ObserverProtocolConfig {
   /// Política opcional que força a redação do resumo. Se ela lançar, o valor
   /// também será redigido por segurança.
   final bool Function(Object? value)? redactValue;
+
+  /// Whether user-provided node and scope labels are replaced before storage.
+  final bool redactLabels;
 }

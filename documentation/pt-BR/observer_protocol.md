@@ -101,6 +101,16 @@ Iniciar nova sessão limpa registry e buffer. Objetos anteriores à nova sessão
 não são redescobertos automaticamente até que uma versão futura defina um
 contrato explícito de re-registro.
 
+Consumers devem verificar `snapshot.baselineStatus` (ou
+`snapshot.isBaselineComplete`) antes de reconciliar eventos. Ativação tardia,
+reconfiguração com objetos ativos e reinício com objetos ativos são informados
+explicitamente como baselines incompletos. A política é conservadora: o caminho
+desativado não mantém registry forte de objetos vivos.
+
+O protocolo v1 também informa `instrumentationCoverage: partial` com a
+limitação `reactiveCollections`. Uma DevTools não deve apresentar o grafo como
+completo enquanto essa limitação estiver presente.
+
 ## Ring buffer e eventos descartados
 
 O buffer é limitado e remove o evento mais antigo quando cheio.
@@ -128,6 +138,20 @@ reativa.
 Isso torna o resumo seguro para referências circulares e para `toString()`
 lento, que lança ou que produz texto enorme. Stack traces são opt-in separado
 e permanecem desativados por padrão.
+
+`ObserverProtocolConfig.productionSafe()` desativa captura de valores e stacks
+e substitui labels fornecidas pela aplicação por `[redacted]`. O construtor
+normal preserva o comportamento histórico; `redactLabels: true` permite optar
+somente pela proteção de labels. O truncamento conta escalares Unicode e nunca
+corta um surrogate pair ao meio.
+
+## Status de falhas internas
+
+Exceções de inspectors continuam isoladas da atualização da aplicação e dos
+inspectors seguintes. O snapshot expõe `protocolInternalErrorCount`, contagens
+por categoria e `lastProtocolInternalErrorCode`. O último código é fixo e
+sanitizado; a mensagem da exceção nunca é retida. A contabilização não emite
+eventos, evitando recursão diagnóstica.
 
 ## Modelo de overhead
 

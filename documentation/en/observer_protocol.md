@@ -103,6 +103,16 @@ Starting a new session clears registry and buffer state. Objects that predate
 a newly started session are not rediscovered automatically until a future
 protocol version defines an explicit re-registration contract.
 
+Consumers must inspect `snapshot.baselineStatus` (or
+`snapshot.isBaselineComplete`) before reconciling events. Late activation,
+reconfiguration with active objects, and restarting with active objects are
+reported explicitly as incomplete baselines. This is conservative by design:
+the disabled path does not retain a strong active-object registry.
+
+Protocol v1 also reports `instrumentationCoverage: partial` with the
+`reactiveCollections` limitation. A DevTools consumer must not present the
+graph as complete while that limitation is present.
+
 ## Event buffer and dropped events
 
 The event buffer is bounded and removes the oldest event when full.
@@ -130,6 +140,20 @@ closed and redacts the value without interrupting the reactive update.
 This makes summaries safe for circular objects and for objects with slow,
 throwing, or extremely large `toString()` implementations. Stack traces are
 independently opt-in and disabled by default.
+
+`ObserverProtocolConfig.productionSafe()` disables value and stack capture
+and replaces user-provided node/scope labels with `[redacted]`. The normal
+constructor keeps its historical label behavior; applications can opt into
+label protection alone with `redactLabels: true`. String truncation counts
+Unicode scalar values and never splits a surrogate pair.
+
+## Internal failure status
+
+Inspector exceptions remain isolated from application updates and later
+inspectors. Snapshots expose `protocolInternalErrorCount`, categorized counts,
+and `lastProtocolInternalErrorCode`. The last code is fixed and sanitized; an
+exception message is never retained. Accounting is non-emitting to prevent
+recursive diagnostic failures.
 
 ## Overhead model
 

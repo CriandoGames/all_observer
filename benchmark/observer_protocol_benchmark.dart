@@ -44,9 +44,28 @@ void main() {
       const ObserverProtocolConfig(enabled: true, eventBufferSize: 0),
     ),
     _updates(
+      'registry disabled, buffer zero',
+      updates,
+      const ObserverProtocolConfig(
+        enabled: true,
+        registryEnabled: false,
+        eventBufferSize: 0,
+      ),
+    ),
+    _updates(
+      'registry + buffer 1',
+      updates,
+      const ObserverProtocolConfig(enabled: true, eventBufferSize: 1),
+    ),
+    _updates(
       'registry + buffer 1000',
       updates,
       const ObserverProtocolConfig(enabled: true, eventBufferSize: 1000),
+    ),
+    _updates(
+      'registry + buffer 100000',
+      updates,
+      const ObserverProtocolConfig(enabled: true, eventBufferSize: 100000),
     ),
     _updates(
       'safe value capture',
@@ -70,8 +89,10 @@ void main() {
     _snapshot(nodes: 1000, snapshots: 1000),
     _computedChain(updates: 100000),
     _dependencyReplacement(dependencies: 100, runs: 10000),
+    _dependencyReplacement(dependencies: 1000, runs: 1000),
     _conditionalDependencies(runs: 100000),
     _scopeDisposal(resources: 1000, runs: 200),
+    _nodeChurn(nodes: 100000),
   ];
 
   final double disabled = results.first.microsPerOperation;
@@ -86,6 +107,22 @@ void main() {
       '${result.microsPerOperation.toStringAsFixed(4)} | $ratio |',
     );
   }
+}
+
+_Result _nodeChurn({required int nodes}) {
+  ObserverProtocol.configure(
+    const ObserverProtocolConfig(enabled: true, eventBufferSize: 0),
+  );
+  final Stopwatch watch = Stopwatch()..start();
+  for (int index = 0; index < nodes; index++) {
+    CoreObservable<int>(index).close();
+  }
+  watch.stop();
+  return _Result(
+    'node create/dispose churn',
+    nodes,
+    watch.elapsedMicroseconds / nodes,
+  );
 }
 
 _Result _updates(

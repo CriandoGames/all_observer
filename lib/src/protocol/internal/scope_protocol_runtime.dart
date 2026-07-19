@@ -18,8 +18,11 @@ abstract final class ScopeProtocolRuntime {
   }) {
     if (!state.isEnabled) return;
     try {
+      final String safeLabel = state.config.redactLabels
+          ? '[redacted]'
+          : debugLabel;
       if (state.config.registryEnabled) {
-        state.registry.registerScope(scopeId, debugLabel);
+        state.registry.registerScope(scopeId, safeLabel);
       }
       final ProtocolEventMetadata meta = state.metadata();
       state.emit(
@@ -31,7 +34,7 @@ abstract final class ScopeProtocolRuntime {
           timestampMicros: meta.timestampMicros,
           stackTrace: meta.stackTrace,
           scopeId: scopeId,
-          debugLabel: debugLabel,
+          debugLabel: safeLabel,
         ),
       );
     } catch (_) {}

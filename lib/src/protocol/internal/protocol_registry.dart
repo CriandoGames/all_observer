@@ -14,6 +14,10 @@ final class ProtocolRegistry {
   final Map<ObserverNodeId, ProtocolScopeState> _scopes =
       <ObserverNodeId, ProtocolScopeState>{};
 
+  /// Whether clearing this registry could orphan active protocol state.
+  bool get hasState =>
+      _nodes.isNotEmpty || _dependencies.isNotEmpty || _scopes.isNotEmpty;
+
   /// Clears every retained node, edge and scope.
   ///
   /// Limpa todos os nós, arestas e escopos retidos.

@@ -33,11 +33,14 @@ abstract final class ValueSummaryPolicy {
         if (_looksSensitive(value)) {
           return ObserverValueSummary(type: type, isRedacted: true);
         }
-        final bool truncated = value.length > config.maxStringLength;
+        final List<int> boundedRunes = value.runes
+            .take(config.maxStringLength + 1)
+            .toList(growable: false);
+        final bool truncated = boundedRunes.length > config.maxStringLength;
         return ObserverValueSummary(
           type: type,
           display: truncated
-              ? value.substring(0, config.maxStringLength)
+              ? String.fromCharCodes(boundedRunes.take(config.maxStringLength))
               : value,
           isTruncated: truncated,
         );
@@ -80,11 +83,23 @@ abstract final class ValueSummaryPolicy {
 
   static bool _looksSensitive(String value) {
     final String lower = value.toLowerCase();
+    final bool compactToken =
+        value.length >= 32 && RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(value);
     return lower.contains('password') ||
         lower.contains('passwd') ||
         lower.contains('secret') ||
         lower.contains('token=') ||
         lower.contains('authorization:') ||
-        lower.contains('bearer ');
+        lower.contains('bearer ') ||
+        RegExp(
+          r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$',
+        ).hasMatch(value) ||
+        RegExp(
+          r'^(sk|pk|api)[_-][A-Za-z0-9_-]{16,}$',
+          caseSensitive: false,
+        ).hasMatch(value) ||
+        RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value) ||
+        RegExp(r'^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$').hasMatch(value) ||
+        compactToken;
   }
 }

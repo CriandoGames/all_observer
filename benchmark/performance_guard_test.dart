@@ -35,6 +35,20 @@ int _timeObservable() {
   return sink == -1 ? -1 : stopwatch.elapsedMicroseconds;
 }
 
+int _timeProtocolUpdates(ObserverProtocolConfig config) {
+  ObserverConfig.reset();
+  ObserverProtocol.configure(config);
+  final Observable<int> observable = Observable<int>(-1);
+  final Stopwatch stopwatch = Stopwatch()..start();
+  for (int i = 0; i < _iterations; i++) {
+    observable.value = i;
+  }
+  stopwatch.stop();
+  observable.close();
+  ObserverProtocol.reset();
+  return stopwatch.elapsedMicroseconds;
+}
+
 int _timePlainListAddAll(List<int> values) {
   final Stopwatch stopwatch = Stopwatch()..start();
   for (int i = 0; i < 500; i++) {
@@ -97,6 +111,38 @@ void main() {
       reason:
           'ObservableList/List addAll median ratio was '
           '${ratio.toStringAsFixed(2)}x',
+    );
+  });
+
+  test('enabled protocol update cost stays below catastrophe guard', () {
+    _timeProtocolUpdates(const ObserverProtocolConfig());
+    _timeProtocolUpdates(
+      const ObserverProtocolConfig(enabled: true, eventBufferSize: 0),
+    );
+
+    final int disabled = _median(
+      List<int>.generate(
+        5,
+        (_) => _timeProtocolUpdates(const ObserverProtocolConfig()),
+      ),
+    );
+    final int enabled = _median(
+      List<int>.generate(
+        5,
+        (_) => _timeProtocolUpdates(
+          const ObserverProtocolConfig(enabled: true, eventBufferSize: 0),
+        ),
+      ),
+    );
+    final double ratio = enabled / disabled;
+
+    expect(
+      ratio,
+      lessThan(50),
+      reason:
+          'Enabled/disabled protocol update median ratio was '
+          '${ratio.toStringAsFixed(2)}x. The 50x threshold is a broad '
+          'debug-JIT catastrophe guard.',
     );
   });
 }

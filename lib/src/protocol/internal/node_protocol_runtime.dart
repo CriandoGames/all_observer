@@ -28,12 +28,15 @@ abstract final class NodeProtocolRuntime {
       final ObserverValueSummary? summary = hasInitialValue
           ? ValueSummaryPolicy.summarize(initialValue, state.config)
           : null;
+      final String safeLabel = state.config.redactLabels
+          ? '[redacted]'
+          : debugLabel;
       if (state.config.registryEnabled) {
         state.registry.registerNode(
           ObserverNodeSnapshot(
             objectId: objectId,
             kind: kind,
-            debugLabel: debugLabel,
+            debugLabel: safeLabel,
             debugType: debugType,
             createdAtMicros: meta.timestampMicros,
             valueSummary: summary,
@@ -50,7 +53,7 @@ abstract final class NodeProtocolRuntime {
           stackTrace: meta.stackTrace,
           objectId: objectId,
           kind: kind,
-          debugLabel: debugLabel,
+          debugLabel: safeLabel,
           debugType: debugType,
           initialValueSummary: summary,
         ),

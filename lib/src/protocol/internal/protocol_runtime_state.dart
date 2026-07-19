@@ -1,6 +1,10 @@
 import '../../core/core_error_reporting.dart';
 import '../../logging/observer_config.dart';
 import '../events/observer_protocol_event.dart';
+import '../events/node_events.dart';
+import '../events/scope_events.dart';
+import '../events/tracker_events.dart';
+import '../events/warning_event.dart';
 import '../model/observer_node.dart';
 import '../observer_protocol_config.dart';
 import '../observer_protocol_inspector.dart';
@@ -34,6 +38,15 @@ final class ProtocolRuntimeState {
   int _sequenceNumber = 0;
   int _eventCounter = 0;
   int _runCounter = 0;
+  bool _hasAllocatedNode = false;
+  bool _recordingInternalError = false;
+  bool _handlingInternalFailure = false;
+  int _protocolInternalErrorCount = 0;
+  final Map<ObserverProtocolInternalErrorCategory, int>
+  _protocolInternalErrorCounts = <ObserverProtocolInternalErrorCategory, int>{};
+  String? _lastProtocolInternalErrorCode;
+  ObserverProtocolBaselineStatus _baselineStatus =
+      ObserverProtocolBaselineStatus.complete;
 
   /// Current session identity. / Identidade da sessão atual.
   late String sessionId = _generateSessionId();
@@ -45,30 +58,54 @@ final class ProtocolRuntimeState {
   int get lastSequenceNumber => _sequenceNumber;
 
   /// Allocates a stable node ID. / Aloca um ID estável de nó.
-  ObserverNodeId allocateNodeId() => ObserverNodeId(++_globalNodeCounter);
+  ObserverNodeId allocateNodeId() {
+    _hasAllocatedNode = true;
+    return ObserverNodeId(++_globalNodeCounter);
+  }
 
   /// Allocates a session run ID. / Aloca um ID de execução na sessão.
   String allocateRunId() => 'run-${++_runCounter}';
 
   /// Applies configuration and starts clean. / Aplica configuração e reinicia.
   void configure(ObserverProtocolConfig next) {
+    final bool wasEnabled = config.enabled;
+    final bool hadRegisteredState = registry.hasState;
+    final ObserverProtocolBaselineStatus nextBaseline = !next.enabled
+        ? ObserverProtocolBaselineStatus.complete
+        : wasEnabled && hadRegisteredState
+        ? ObserverProtocolBaselineStatus.reconfiguredWithActiveObjects
+        : !wasEnabled && _hasAllocatedNode
+        ? ObserverProtocolBaselineStatus.activatedAfterObjectsWereAllocated
+        : _baselineStatus;
     config = next;
     // The public constructor asserts this in debug mode; clamping here keeps
     // an invalid release-mode value from accidentally creating an unbounded
     // queue. / O construtor valida em debug; o clamp impede que um valor
     // inválido em release transforme a fila em armazenamento ilimitado.
     buffer.limit = next.eventBufferSize < 0 ? 0 : next.eventBufferSize;
-    startNewSession();
+    startNewSession(baselineStatus: nextBaseline);
   }
 
   /// Starts an isolated session. / Inicia uma sessão isolada.
-  void startNewSession({String? explicitSessionId}) {
+  void startNewSession({
+    String? explicitSessionId,
+    ObserverProtocolBaselineStatus? baselineStatus,
+  }) {
+    final bool hadRegisteredState = registry.hasState;
+    _baselineStatus =
+        baselineStatus ??
+        (config.enabled && hadRegisteredState
+            ? ObserverProtocolBaselineStatus.restartedWithActiveObjects
+            : _baselineStatus);
     sessionId = explicitSessionId ?? _generateSessionId();
     _sequenceNumber = 0;
     _eventCounter = 0;
     _runCounter = 0;
     buffer.clear();
     registry.clear();
+    _protocolInternalErrorCount = 0;
+    _protocolInternalErrorCounts.clear();
+    _lastProtocolInternalErrorCode = null;
   }
 
   /// Restores disabled defaults. / Restaura os padrões desativados.
@@ -92,18 +129,7 @@ final class ProtocolRuntimeState {
         try {
           inspector.onProtocolEvent(event);
         } catch (error, stackTrace) {
-          // Diagnostics cannot affect application state or later inspectors.
-          // Report through the same pure-Dart hook used by the reactive core.
-          try {
-            CoreErrorReporting.report(
-              error,
-              stackTrace,
-              library: 'all_observer',
-              context: 'while dispatching an Observer Protocol event',
-            );
-          } catch (_) {
-            // A failing host reporter is diagnostic code too and stays isolated.
-          }
+          _handleInspectorFailure(event, error, stackTrace);
         }
       }
     }
@@ -127,7 +153,76 @@ final class ProtocolRuntimeState {
     droppedEventCount: buffer.droppedCount,
     firstAvailableSequence: buffer.firstAvailableSequence,
     lastAvailableSequence: buffer.lastAvailableSequence,
+    baselineStatus: _baselineStatus,
+    instrumentationCoverage: ObserverProtocolInstrumentationCoverage.partial,
+    coverageLimitations: const <ObserverProtocolCoverageLimitation>{
+      ObserverProtocolCoverageLimitation.reactiveCollections,
+    },
+    protocolInternalErrorCount: _protocolInternalErrorCount,
+    protocolInternalErrorCounts: _protocolInternalErrorCounts,
+    lastProtocolInternalErrorCode: _lastProtocolInternalErrorCode,
   );
+
+  /// Accounts for an isolated failure without emitting another event.
+  void recordInternalError(
+    ObserverProtocolInternalErrorCategory category,
+    String sanitizedCode,
+  ) {
+    if (_recordingInternalError) return;
+    _recordingInternalError = true;
+    try {
+      _protocolInternalErrorCount++;
+      _protocolInternalErrorCounts.update(
+        category,
+        (int count) => count + 1,
+        ifAbsent: () => 1,
+      );
+      _lastProtocolInternalErrorCode = sanitizedCode;
+    } finally {
+      _recordingInternalError = false;
+    }
+  }
+
+  void _handleInspectorFailure(
+    ObserverProtocolEvent event,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    if (_handlingInternalFailure) return;
+    _handlingInternalFailure = true;
+    try {
+      recordInternalError(_categoryFor(event), 'inspector_dispatch_failed');
+      try {
+        CoreErrorReporting.report(
+          error,
+          stackTrace,
+          library: 'all_observer',
+          context: 'while dispatching an Observer Protocol event',
+        );
+      } catch (_) {
+        // A failing host reporter is diagnostic code too and stays isolated.
+      }
+    } finally {
+      _handlingInternalFailure = false;
+    }
+  }
+
+  ObserverProtocolInternalErrorCategory _categoryFor(
+    ObserverProtocolEvent event,
+  ) => switch (event) {
+    NodeCreatedEvent() => ObserverProtocolInternalErrorCategory.creation,
+    NodeUpdatedEvent() => ObserverProtocolInternalErrorCategory.update,
+    DependenciesChangedEvent() =>
+      ObserverProtocolInternalErrorCategory.dependencyDelta,
+    WarningRaisedEvent() => ObserverProtocolInternalErrorCategory.warning,
+    NodeDisposedEvent() => ObserverProtocolInternalErrorCategory.dispose,
+    ScopeCreatedEvent() ||
+    ScopeResourceRegisteredEvent() ||
+    ProtocolScopeDisposedEvent() => ObserverProtocolInternalErrorCategory.scope,
+    TrackerRunFinishedEvent() =>
+      ObserverProtocolInternalErrorCategory.trackerFinished,
+    _ => ObserverProtocolInternalErrorCategory.other,
+  };
 
   String _generateSessionId() =>
       'session-${DateTime.now().microsecondsSinceEpoch}-${++_sessionCounter}';

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, protocol-v1]
   pull_request:
-    branches: [main]
+    branches: [main, protocol-v1]
   workflow_dispatch:
 
 jobs:
@@ -25,6 +25,12 @@ jobs:
 
       - name: Run tests
         run: flutter test
+
+      - name: Run Observer Protocol contract tests
+        run: flutter test test/devtools/
+
+      - name: Run regression tests
+        run: flutter test test/regressions/
 
       - name: Validate package
         run: flutter pub publish --dry-run
